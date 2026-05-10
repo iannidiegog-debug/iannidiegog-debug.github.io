@@ -580,6 +580,68 @@
       grid-column: span 2;
     }
 
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 38;
+      display: grid;
+      align-items: end;
+      background: rgba(31, 41, 51, 0.36);
+      padding: 12px;
+    }
+
+    .detail-panel {
+      width: min(620px, 100%);
+      max-height: min(86dvh, 760px);
+      margin: 0 auto;
+      display: grid;
+      gap: 12px;
+      overflow: auto;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 20px 48px rgba(31, 41, 51, 0.22);
+      padding: 14px;
+    }
+
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .detail-block {
+      display: grid;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .mini-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .mini-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfb;
+    }
+
+    .link-button {
+      display: grid;
+      place-items: center;
+      min-height: 44px;
+      border-radius: 8px;
+      background: #dcfce7;
+      color: #166534;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 0 14px;
+    }
+
     @media (min-width: 860px) {
       .wrap {
         padding-bottom: 28px;
@@ -688,7 +750,7 @@
         <div class="home">
           <section class="hero">
             <div>
-              <h2>Trabajo del día</h2>
+              <h2>Hoy</h2>
               <p>Accesos rápidos para cargar ventas, compras, entregas y cuentas pendientes.</p>
             </div>
             <div class="quick-actions">
@@ -856,6 +918,7 @@
           </div>
           <div class="form">
             <button type="button" id="exportData">Descargar copia</button>
+            <button class="ghost" type="button" id="exportExcel">Exportar para Excel</button>
             <label>Restaurar copia
               <input type="file" id="importData" accept="application/json">
             </label>
@@ -901,10 +964,20 @@
     </div>
   </section>
 
+  <section class="detail-overlay" id="detailOverlay" hidden>
+    <div class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="detail-head">
+        <h2 id="detailTitle">Ficha</h2>
+        <button class="ghost" type="button" id="detailClose">Cerrar</button>
+      </div>
+      <div id="detailContent"></div>
+    </div>
+  </section>
+
   <nav class="nav" id="mainNav" aria-label="Secciones" hidden>
-    <button class="active" type="button" data-open="home" aria-label="Inicio">
+    <button class="active" type="button" data-open="home" aria-label="Hoy">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-      Inicio
+      Hoy
     </button>
     <button type="button" data-open="clients" aria-label="Clientes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -976,6 +1049,7 @@
       $("#mainNav").hidden = true;
       $("#calculatorFab").hidden = true;
       $("#calculatorOverlay").hidden = true;
+      $("#detailOverlay").hidden = true;
       $("#authScreen").hidden = false;
 
       if (authConfig) {
@@ -1044,6 +1118,7 @@
       sessionStorage.removeItem(authSessionKey);
       $("#authPassword").value = "";
       $("#calculatorOverlay").hidden = true;
+      $("#detailOverlay").hidden = true;
       setupAuthScreen();
     });
 
@@ -1080,6 +1155,15 @@
     function closeCalculator() {
       $("#calculatorOverlay").hidden = true;
     }
+
+    function closeDetail() {
+      $("#detailOverlay").hidden = true;
+    }
+
+    $("#detailClose").addEventListener("click", closeDetail);
+    $("#detailOverlay").addEventListener("click", (event) => {
+      if (event.target === $("#detailOverlay")) closeDetail();
+    });
 
     $$("[data-calculator-open]").forEach((button) => {
       button.addEventListener("click", openCalculator);
@@ -1167,18 +1251,51 @@
       return state.clients.find((client) => client.id === clientId)?.name || "Cliente borrado";
     }
 
+    function paymentTotal(item) {
+      const history = Array.isArray(item.payments)
+        ? item.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+        : 0;
+      return history + Number(item.paid || 0);
+    }
+
+    function orderPaid(order) {
+      return paymentTotal(order);
+    }
+
     function orderDebt(order) {
-      return Math.max(0, Number(order.total) - Number(order.paid || 0));
+      return Math.max(0, Number(order.total) - orderPaid(order));
+    }
+
+    function purchasePaid(purchase) {
+      return paymentTotal(purchase);
     }
 
     function purchaseDebt(purchase) {
-      return Math.max(0, Number(purchase.total) - Number(purchase.paid || 0));
+      return Math.max(0, Number(purchase.total) - purchasePaid(purchase));
     }
 
     function clientDebt(clientId) {
       return state.orders
         .filter((order) => order.clientId === clientId)
         .reduce((sum, order) => sum + orderDebt(order), 0);
+    }
+
+    function itemPayments(item) {
+      const history = Array.isArray(item.payments) ? item.payments.slice() : [];
+      if (Number(item.paid || 0) > 0) {
+        history.unshift({
+          id: `${item.id}-inicial`,
+          amount: Number(item.paid),
+          date: item.date || todayISO,
+          note: "Pago inicial"
+        });
+      }
+      return history;
+    }
+
+    function whatsappURL(phone) {
+      const digits = String(phone || "").replace(/\D/g, "");
+      return digits ? `https://wa.me/${digits}` : "";
     }
 
     function matchesSearch(text) {
@@ -1262,13 +1379,14 @@
     function renderClients() {
       const list = $("#clientList");
       const clients = state.clients
-        .filter((client) => matchesSearch(`${client.name} ${client.phone} ${client.address} ${client.note}`))
+        .filter((client) => matchesSearch(`${client.name} ${client.phone} ${client.address} ${client.note} ${state.orders.filter((order) => order.clientId === client.id).map((order) => order.items).join(" ")}`))
         .sort((a, b) => a.name.localeCompare(b.name));
 
       list.innerHTML = clients.length ? "" : '<div class="empty">Todavía no hay clientes.</div>';
 
       clients.forEach((client) => {
         const debt = clientDebt(client.id);
+        const whatsapp = whatsappURL(client.phone);
         const card = document.createElement("article");
         card.className = `card ${debt > 0 ? "debt" : "paid"}`;
         card.innerHTML = `
@@ -1281,8 +1399,10 @@
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
           ${client.note ? `<div class="muted">${escapeHTML(client.note)}</div>` : ""}
-          <div class="actions">
+          <div class="actions three">
+            <button class="ghost" type="button" data-client-detail="${client.id}">Ficha</button>
             <button class="ghost" type="button" data-quick-order="${client.id}">Pedido</button>
+            ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : `<button class="ghost" type="button" disabled>WhatsApp</button>`}
             <button class="danger" type="button" data-delete-client="${client.id}">Borrar</button>
           </div>
         `;
@@ -1300,6 +1420,8 @@
 
       orders.forEach((order) => {
         const debt = orderDebt(order);
+        const paid = orderPaid(order);
+        const payments = itemPayments(order);
         const card = document.createElement("article");
         card.className = `card ${order.status === "Entregado" ? "done" : ""}`;
         card.innerHTML = `
@@ -1313,9 +1435,11 @@
           <div>${escapeHTML(order.items).replace(/\n/g, "<br>")}</div>
           <div class="chips">
             <span class="chip">Total ${money.format(order.total)}</span>
-            <span class="chip">Pagó ${money.format(order.paid || 0)}</span>
+            <span class="chip">Pagó ${money.format(paid)}</span>
             <span class="chip">${order.status}</span>
+            <span class="chip">${payments.length} pagos</span>
           </div>
+          ${payments.length ? `<div class="muted">Último pago: ${formatDate(payments[payments.length - 1].date)} · ${money.format(payments[payments.length - 1].amount)}</div>` : ""}
           <div class="two">
             <input inputmode="decimal" placeholder="Pago nuevo" data-payment="${order.id}">
             <button class="ghost" type="button" data-add-payment="${order.id}">Anotar pago</button>
@@ -1340,6 +1464,8 @@
 
       purchases.forEach((purchase) => {
         const debt = purchaseDebt(purchase);
+        const paid = purchasePaid(purchase);
+        const payments = itemPayments(purchase);
         const card = document.createElement("article");
         card.className = `card ${debt > 0 ? "debt" : "paid"}`;
         card.innerHTML = `
@@ -1353,16 +1479,18 @@
           <div>${escapeHTML(purchase.items).replace(/\n/g, "<br>")}</div>
           <div class="chips">
             <span class="chip">Total ${money.format(purchase.total)}</span>
-            <span class="chip">Pagó ${money.format(purchase.paid || 0)}</span>
+            <span class="chip">Pagó ${money.format(paid)}</span>
             <span class="chip">${purchase.status}</span>
+            <span class="chip">${payments.length} pagos</span>
           </div>
+          ${payments.length ? `<div class="muted">Último pago: ${formatDate(payments[payments.length - 1].date)} · ${money.format(payments[payments.length - 1].amount)}</div>` : ""}
           <div class="two">
             <input inputmode="decimal" placeholder="Pago nuevo" data-purchase-payment="${purchase.id}">
             <button class="ghost" type="button" data-add-purchase-payment="${purchase.id}">Anotar pago</button>
           </div>
           <div class="actions three">
+            <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}">Proveedor</button>
             <button class="ghost" type="button" data-purchase-paid="${purchase.id}">Pagada</button>
-            <button class="ghost" type="button" data-purchase-pending="${purchase.id}">Pendiente</button>
             <button class="danger" type="button" data-delete-purchase="${purchase.id}">Borrar</button>
           </div>
         `;
@@ -1421,6 +1549,129 @@
       });
     }
 
+    function renderClientDetail(clientId) {
+      const client = state.clients.find((item) => item.id === clientId);
+      if (!client) return;
+
+      const orders = state.orders
+        .filter((order) => order.clientId === client.id)
+        .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+      const debt = clientDebt(client.id);
+      const whatsapp = whatsappURL(client.phone);
+      $("#detailTitle").textContent = client.name;
+      $("#detailContent").innerHTML = `
+        <div class="detail-block">
+          <div class="row">
+            <div>
+              <strong>Saldo</strong>
+              <div class="muted">${orders.length} pedidos cargados</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <div class="muted">${escapeHTML(client.phone || "Sin teléfono")}</div>
+          <div class="muted">${escapeHTML(client.address || "Sin dirección")}</div>
+          ${client.note ? `<div class="muted">${escapeHTML(client.note)}</div>` : ""}
+          <div class="actions">
+            <button class="ghost" type="button" data-quick-order="${client.id}">Nuevo pedido</button>
+            ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Historial de pedidos</h2>
+          <div class="mini-list">
+            ${orders.length ? orders.map((order) => `
+              <div class="mini-item">
+                <div class="row">
+                  <strong>${formatDate(order.date)}</strong>
+                  <span class="money ${orderDebt(order) > 0 ? "bad" : "good"}">${money.format(orderDebt(order))}</span>
+                </div>
+                <div class="muted">${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+                <div class="chips">
+                  <span class="chip">Total ${money.format(order.total)}</span>
+                  <span class="chip">Pagó ${money.format(orderPaid(order))}</span>
+                  <span class="chip">${escapeHTML(order.status)}</span>
+                </div>
+              </div>
+            `).join("") : '<div class="empty">Sin pedidos cargados.</div>'}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Historial de pagos</h2>
+          <div class="mini-list">
+            ${orders.flatMap((order) => itemPayments(order).map((payment) => ({ order, payment }))).length
+              ? orders.flatMap((order) => itemPayments(order).map((payment) => `
+                <div class="mini-item">
+                  <div class="row">
+                    <strong>${formatDate(payment.date)}</strong>
+                    <span class="money good">${money.format(payment.amount)}</span>
+                  </div>
+                  <div class="muted">${escapeHTML(payment.note || "Pago")} · Pedido ${formatDate(order.date)}</div>
+                </div>
+              `)).join("")
+              : '<div class="empty">Sin pagos registrados.</div>'}
+          </div>
+        </div>
+      `;
+      $("#detailOverlay").hidden = false;
+    }
+
+    function renderProviderDetail(supplierName) {
+      const purchases = state.purchases
+        .filter((purchase) => purchase.supplier === supplierName)
+        .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+      const debt = purchases.reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
+
+      $("#detailTitle").textContent = supplierName;
+      $("#detailContent").innerHTML = `
+        <div class="detail-block">
+          <div class="row">
+            <div>
+              <strong>Saldo a pagar</strong>
+              <div class="muted">${purchases.length} compras cargadas</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <button class="ghost" type="button" data-open="purchases">Nueva compra</button>
+        </div>
+        <div class="detail-block">
+          <h2>Historial de compras</h2>
+          <div class="mini-list">
+            ${purchases.length ? purchases.map((purchase) => `
+              <div class="mini-item">
+                <div class="row">
+                  <strong>${formatDate(purchase.date)}</strong>
+                  <span class="money ${purchaseDebt(purchase) > 0 ? "bad" : "good"}">${money.format(purchaseDebt(purchase))}</span>
+                </div>
+                <div class="muted">${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                <div class="chips">
+                  <span class="chip">Total ${money.format(purchase.total)}</span>
+                  <span class="chip">Pagó ${money.format(purchasePaid(purchase))}</span>
+                  <span class="chip">${escapeHTML(purchase.status)}</span>
+                </div>
+              </div>
+            `).join("") : '<div class="empty">Sin compras cargadas.</div>'}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Historial de pagos</h2>
+          <div class="mini-list">
+            ${purchases.flatMap((purchase) => itemPayments(purchase).map((payment) => ({ purchase, payment }))).length
+              ? purchases.flatMap((purchase) => itemPayments(purchase).map((payment) => `
+                <div class="mini-item">
+                  <div class="row">
+                    <strong>${formatDate(payment.date)}</strong>
+                    <span class="money good">${money.format(payment.amount)}</span>
+                  </div>
+                  <div class="muted">${escapeHTML(payment.note || "Pago")} · Compra ${formatDate(purchase.date)}</div>
+                </div>
+              `)).join("")
+              : '<div class="empty">Sin pagos registrados.</div>'}
+          </div>
+        </div>
+      `;
+      $("#detailOverlay").hidden = false;
+    }
+
     function formatDate(value) {
       if (!value) return "";
       const [year, month, day] = value.split("-");
@@ -1438,9 +1689,14 @@
 
     $("#clientForm").addEventListener("submit", (event) => {
       event.preventDefault();
+      const name = $("#clientName").value.trim();
+      if (state.clients.some((client) => client.name.toLowerCase() === name.toLowerCase())) {
+        alert("Ese cliente ya está cargado.");
+        return;
+      }
       state.clients.push({
         id: id(),
-        name: $("#clientName").value.trim(),
+        name,
         phone: $("#clientPhone").value.trim(),
         address: $("#clientAddress").value.trim(),
         note: $("#clientNote").value.trim()
@@ -1453,13 +1709,24 @@
     $("#orderForm").addEventListener("submit", (event) => {
       event.preventDefault();
       if (!$("#orderClient").value) return;
+      const total = numberFrom($("#orderTotal").value);
+      const paid = numberFrom($("#orderPaid").value);
+      if (total <= 0) {
+        alert("El monto total tiene que ser mayor a cero.");
+        return;
+      }
+      if (paid > total) {
+        alert("El pago no puede ser mayor que el total del pedido.");
+        return;
+      }
 
       state.orders.push({
         id: id(),
         clientId: $("#orderClient").value,
         items: $("#orderItems").value.trim(),
-        total: numberFrom($("#orderTotal").value),
-        paid: numberFrom($("#orderPaid").value),
+        total,
+        paid: 0,
+        payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#orderDate").value || todayISO, note: "Pago inicial" }] : [],
         date: $("#orderDate").value || todayISO,
         deliveryDate: $("#deliveryDate").value,
         status: "Pendiente"
@@ -1472,13 +1739,24 @@
 
     $("#purchaseForm").addEventListener("submit", (event) => {
       event.preventDefault();
+      const total = numberFrom($("#purchaseTotal").value);
+      const paid = numberFrom($("#purchasePaid").value);
+      if (total <= 0) {
+        alert("El monto total tiene que ser mayor a cero.");
+        return;
+      }
+      if (paid > total) {
+        alert("El pago no puede ser mayor que el total de la compra.");
+        return;
+      }
 
       state.purchases.push({
         id: id(),
         supplier: $("#purchaseSupplier").value.trim(),
         items: $("#purchaseItems").value.trim(),
-        total: numberFrom($("#purchaseTotal").value),
-        paid: numberFrom($("#purchasePaid").value),
+        total,
+        paid: 0,
+        payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#purchaseDate").value || todayISO, note: "Pago inicial" }] : [],
         date: $("#purchaseDate").value || todayISO,
         dueDate: $("#purchaseDueDate").value,
         status: "Pendiente"
@@ -1494,13 +1772,27 @@
       if (!button) return;
 
       if (button.dataset.open) {
+        closeDetail();
         openView(button.dataset.open);
       }
 
       if (button.dataset.quickOrder) {
         $("#orderClient").value = button.dataset.quickOrder;
+        closeDetail();
         openView("orders");
         $("#orderItems").focus();
+      }
+
+      if (button.dataset.clientDetail) {
+        renderClientDetail(button.dataset.clientDetail);
+      }
+
+      if (button.dataset.providerDetail) {
+        renderProviderDetail(button.dataset.providerDetail);
+      }
+
+      if (button.dataset.whatsapp) {
+        window.open(button.dataset.whatsapp, "_blank");
       }
 
       if (button.dataset.deleteClient && confirm("¿Borrar este cliente y sus pedidos?")) {
@@ -1525,7 +1817,11 @@
 
       if (button.dataset.paid) {
         const order = state.orders.find((item) => item.id === button.dataset.paid);
-        order.paid = order.total;
+        const remaining = orderDebt(order);
+        if (remaining > 0) {
+          order.payments = Array.isArray(order.payments) ? order.payments : [];
+          order.payments.push({ id: id(), amount: remaining, date: todayISO, note: "Pago final" });
+        }
         save();
         renderAll();
       }
@@ -1534,7 +1830,13 @@
         const input = document.querySelector(`[data-payment="${button.dataset.addPayment}"]`);
         const payment = numberFrom(input.value);
         const order = state.orders.find((item) => item.id === button.dataset.addPayment);
-        order.paid = Math.min(Number(order.total), Number(order.paid || 0) + payment);
+        if (payment <= 0) return;
+        if (payment > orderDebt(order)) {
+          alert("El pago no puede ser mayor que lo que queda debiendo.");
+          return;
+        }
+        order.payments = Array.isArray(order.payments) ? order.payments : [];
+        order.payments.push({ id: id(), amount: payment, date: todayISO, note: "Pago" });
         save();
         renderAll();
       }
@@ -1547,7 +1849,11 @@
 
       if (button.dataset.purchasePaid) {
         const purchase = state.purchases.find((item) => item.id === button.dataset.purchasePaid);
-        purchase.paid = purchase.total;
+        const remaining = purchaseDebt(purchase);
+        if (remaining > 0) {
+          purchase.payments = Array.isArray(purchase.payments) ? purchase.payments : [];
+          purchase.payments.push({ id: id(), amount: remaining, date: todayISO, note: "Pago final" });
+        }
         purchase.status = "Pagada";
         save();
         renderAll();
@@ -1564,7 +1870,13 @@
         const input = document.querySelector(`[data-purchase-payment="${button.dataset.addPurchasePayment}"]`);
         const payment = numberFrom(input.value);
         const purchase = state.purchases.find((item) => item.id === button.dataset.addPurchasePayment);
-        purchase.paid = Math.min(Number(purchase.total), Number(purchase.paid || 0) + payment);
+        if (payment <= 0) return;
+        if (payment > purchaseDebt(purchase)) {
+          alert("El pago no puede ser mayor que lo que queda debiendo.");
+          return;
+        }
+        purchase.payments = Array.isArray(purchase.payments) ? purchase.payments : [];
+        purchase.payments.push({ id: id(), amount: payment, date: todayISO, note: "Pago" });
         purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
         save();
         renderAll();
@@ -1610,7 +1922,8 @@
         clientId: client.id,
         items: "3 cajas de arroz\n2 cajas de fideos\n1 pack de aceite",
         total: 42000,
-        paid: 20000,
+        paid: 0,
+        payments: [{ id: id(), amount: 20000, date: todayISO, note: "Pago inicial" }],
         date: todayISO,
         deliveryDate: todayISO,
         status: "Pendiente"
@@ -1625,7 +1938,8 @@
         supplier: "Distribuidora Norte",
         items: "10 cajas de fideos\n5 packs de aceite\n6 cajas de arroz",
         total: 98000,
-        paid: 40000,
+        paid: 0,
+        payments: [{ id: id(), amount: 40000, date: todayISO, note: "Pago inicial" }],
         date: todayISO,
         dueDate: todayISO,
         status: "Pendiente"
@@ -1642,6 +1956,47 @@
       link.download = `pedidos-copia-${todayISO}.json`;
       link.click();
       URL.revokeObjectURL(url);
+    });
+
+    function csvCell(value) {
+      return `"${String(value ?? "").replace(/"/g, '""')}"`;
+    }
+
+    function downloadText(filename, text, type) {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    $("#exportExcel").addEventListener("click", () => {
+      const rows = [
+        ["Tipo", "Nombre", "Fecha", "Detalle", "Total", "Pagado", "Saldo", "Estado"]
+      ];
+
+      state.clients.forEach((client) => {
+        rows.push(["Cliente", client.name, "", `${client.phone || ""} ${client.address || ""} ${client.note || ""}`, "", "", clientDebt(client.id), ""]);
+      });
+
+      state.orders.forEach((order) => {
+        rows.push(["Pedido", clientName(order.clientId), order.date, order.items.replace(/\n/g, " / "), order.total, orderPaid(order), orderDebt(order), order.status]);
+        itemPayments(order).forEach((payment) => {
+          rows.push(["Pago cliente", clientName(order.clientId), payment.date, payment.note || "Pago", "", payment.amount, "", ""]);
+        });
+      });
+
+      state.purchases.forEach((purchase) => {
+        rows.push(["Compra", purchase.supplier, purchase.date, purchase.items.replace(/\n/g, " / "), purchase.total, purchasePaid(purchase), purchaseDebt(purchase), purchase.status]);
+        itemPayments(purchase).forEach((payment) => {
+          rows.push(["Pago proveedor", purchase.supplier, payment.date, payment.note || "Pago", "", payment.amount, "", ""]);
+        });
+      });
+
+      const csv = rows.map((row) => row.map(csvCell).join(";")).join("\n");
+      downloadText(`pedidos-tidial-excel-${todayISO}.csv`, csv, "text/csv;charset=utf-8");
     });
 
     $("#importData").addEventListener("change", async (event) => {
