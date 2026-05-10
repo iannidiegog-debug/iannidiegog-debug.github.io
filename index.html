@@ -452,7 +452,7 @@
       bottom: 0;
       z-index: 20;
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 6px;
       padding: 8px max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right));
       background: rgba(255, 255, 255, 0.96);
@@ -540,6 +540,10 @@
       .dashboard {
         grid-template-columns: 1fr;
       }
+
+      .nav button {
+        font-size: 11px;
+      }
     }
   </style>
 </head>
@@ -575,26 +579,13 @@
           <div class="date" id="today"></div>
         </div>
       </div>
-      <section class="summary" aria-label="Resumen">
-        <div class="metric">
-          <strong id="ordersToday">$0</strong>
-          <span>pedidos hoy</span>
-        </div>
-        <div class="metric">
-          <strong id="pendingDeliveries">0</strong>
-          <span>por entregar</span>
-        </div>
-        <div class="metric">
-          <strong id="totalDebt">$0</strong>
-          <span>a cobrar</span>
-        </div>
-      </section>
       <div class="search">
-        <input id="search" placeholder="Buscar cliente, pedido o producto">
+        <input id="search" placeholder="Buscar cliente, proveedor, pedido o producto">
         <button class="ghost" type="button" id="clearSearch">Limpiar</button>
       </div>
       <div class="top-actions">
         <button type="button" data-open="orders">Nuevo pedido</button>
+        <button class="ghost" type="button" data-open="purchases">Nueva compra</button>
         <button class="ghost" type="button" id="logoutButton">Salir</button>
       </div>
     </header>
@@ -605,10 +596,11 @@
           <section class="hero">
             <div>
               <h2>Trabajo del día</h2>
-              <p>Accesos rápidos para cargar ventas, revisar entregas y cobrar pendientes.</p>
+              <p>Accesos rápidos para cargar ventas, compras, entregas y cuentas pendientes.</p>
             </div>
             <div class="quick-actions">
               <button type="button" data-open="orders">Nuevo pedido <span>Cargar venta y pago</span></button>
+              <button type="button" data-open="purchases">Nueva compra <span>Proveedor, productos y pago</span></button>
               <button type="button" data-open="clients">Nuevo cliente <span>Nombre, teléfono y dirección</span></button>
               <button type="button" data-open="debts">Ver deudas <span>Clientes con saldo pendiente</span></button>
               <button type="button" data-open="backup">Hacer copia <span>Guardar respaldo del teléfono</span></button>
@@ -621,16 +613,24 @@
               <span>Total a cobrar</span>
             </div>
             <div class="dash-card">
+              <strong id="dashPurchaseDebt">$0</strong>
+              <span>Total a pagar</span>
+            </div>
+            <div class="dash-card">
               <strong id="dashPending">0</strong>
               <span>Pedidos pendientes</span>
             </div>
             <div class="dash-card">
-              <strong id="dashClients">0</strong>
-              <span>Clientes cargados</span>
+              <strong id="dashPurchasePending">0</strong>
+              <span>Compras pendientes</span>
             </div>
             <div class="dash-card">
               <strong id="dashToday">$0</strong>
               <span>Vendido hoy</span>
+            </div>
+            <div class="dash-card">
+              <strong id="dashPurchasesToday">$0</strong>
+              <span>Comprado hoy</span>
             </div>
           </section>
 
@@ -704,13 +704,55 @@
         </div>
       </section>
 
+      <section class="view" data-view="purchases">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Compras</h2>
+            <button class="ghost" type="button" id="samplePurchases">Ejemplos</button>
+          </div>
+          <form class="form" id="purchaseForm">
+            <label>Proveedor
+              <input id="purchaseSupplier" required placeholder="Distribuidora Norte">
+            </label>
+            <label>Productos comprados
+              <textarea id="purchaseItems" required placeholder="10 cajas de fideos&#10;5 packs de aceite"></textarea>
+            </label>
+            <div class="two">
+              <label>Monto total
+                <input id="purchaseTotal" required inputmode="decimal" placeholder="90000">
+              </label>
+              <label>Pagó
+                <input id="purchasePaid" inputmode="decimal" placeholder="0">
+              </label>
+            </div>
+            <div class="two">
+              <label>Fecha compra
+                <input id="purchaseDate" type="date" required>
+              </label>
+              <label>Fecha vencimiento
+                <input id="purchaseDueDate" type="date">
+              </label>
+            </div>
+            <button type="submit">Guardar compra</button>
+          </form>
+          <div class="list" id="purchaseList"></div>
+        </div>
+      </section>
+
       <section class="view" data-view="debts">
         <div class="panel">
           <div class="panel-head">
             <h2>Deudas</h2>
             <button class="ghost" type="button" id="onlyDebt">Con deuda</button>
           </div>
+          <div class="panel-head">
+            <h2>Clientes que deben</h2>
+          </div>
           <div class="list" id="debtList"></div>
+          <div class="panel-head">
+            <h2>Compras a pagar</h2>
+          </div>
+          <div class="list" id="purchaseDebtList"></div>
         </div>
       </section>
 
@@ -725,7 +767,7 @@
               <input type="file" id="importData" accept="application/json">
             </label>
             <button class="danger" type="button" id="wipeData">Borrar todo</button>
-            <div class="notice">Los datos quedan guardados en este teléfono. La copia sirve por si cambia de celular o borra el navegador.</div>
+            <div class="notice">Los clientes, pedidos, compras y pagos quedan guardados en este teléfono. La copia sirve por si cambia de celular o borra el navegador.</div>
           </div>
         </div>
       </section>
@@ -744,6 +786,10 @@
     <button type="button" data-open="orders" aria-label="Pedidos">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
       Pedidos
+    </button>
+    <button type="button" data-open="purchases" aria-label="Compras">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3h2l2 12h11l3-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+      Compras
     </button>
     <button type="button" data-open="debts" aria-label="Deudas">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -775,6 +821,7 @@
       month: "long"
     }).format(new Date());
     $("#orderDate").value = todayISO;
+    $("#purchaseDate").value = todayISO;
 
     setupAuthScreen();
 
@@ -870,15 +917,16 @@
 
     function load() {
       const saved = localStorage.getItem(storageKey);
-      if (!saved) return { clients: [], orders: [] };
+      if (!saved) return { clients: [], orders: [], purchases: [] };
       try {
         const parsed = JSON.parse(saved);
         return {
           clients: Array.isArray(parsed.clients) ? parsed.clients : [],
-          orders: Array.isArray(parsed.orders) ? parsed.orders : []
+          orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+          purchases: Array.isArray(parsed.purchases) ? parsed.purchases : []
         };
       } catch {
-        return { clients: [], orders: [] };
+        return { clients: [], orders: [], purchases: [] };
       }
     }
 
@@ -904,6 +952,10 @@
       return Math.max(0, Number(order.total) - Number(order.paid || 0));
     }
 
+    function purchaseDebt(purchase) {
+      return Math.max(0, Number(purchase.total) - Number(purchase.paid || 0));
+    }
+
     function clientDebt(clientId) {
       return state.orders
         .filter((order) => order.clientId === clientId)
@@ -916,41 +968,36 @@
     }
 
     function renderAll() {
-      renderSummary();
       renderDashboard();
       renderClientOptions();
       renderClients();
       renderOrders();
+      renderPurchases();
       renderDebts();
-    }
-
-    function renderSummary() {
-      const todayTotal = state.orders
-        .filter((order) => order.date === todayISO)
-        .reduce((sum, order) => sum + Number(order.total), 0);
-      const pending = state.orders.filter((order) => order.status !== "Entregado").length;
-      const totalDebt = state.orders.reduce((sum, order) => sum + orderDebt(order), 0);
-
-      $("#ordersToday").textContent = money.format(todayTotal);
-      $("#pendingDeliveries").textContent = pending;
-      $("#totalDebt").textContent = money.format(totalDebt);
     }
 
     function renderDashboard() {
       const todayTotal = state.orders
         .filter((order) => order.date === todayISO)
         .reduce((sum, order) => sum + Number(order.total), 0);
+      const purchasesTodayTotal = state.purchases
+        .filter((purchase) => purchase.date === todayISO)
+        .reduce((sum, purchase) => sum + Number(purchase.total), 0);
       const pending = state.orders.filter((order) => order.status !== "Entregado").length;
       const totalDebt = state.orders.reduce((sum, order) => sum + orderDebt(order), 0);
+      const purchaseTotalDebt = state.purchases.reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
+      const purchasePending = state.purchases.filter((purchase) => purchaseDebt(purchase) > 0).length;
       const recentOrders = state.orders
         .slice()
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`))
         .slice(0, 3);
 
       $("#dashDebt").textContent = money.format(totalDebt);
+      $("#dashPurchaseDebt").textContent = money.format(purchaseTotalDebt);
       $("#dashPending").textContent = pending;
-      $("#dashClients").textContent = state.clients.length;
+      $("#dashPurchasePending").textContent = purchasePending;
       $("#dashToday").textContent = money.format(todayTotal);
+      $("#dashPurchasesToday").textContent = money.format(purchasesTodayTotal);
 
       const list = $("#recentOrders");
       list.innerHTML = recentOrders.length ? "" : '<div class="empty">Todavía no hay pedidos cargados.</div>';
@@ -1064,6 +1111,46 @@
       });
     }
 
+    function renderPurchases() {
+      const list = $("#purchaseList");
+      const purchases = state.purchases
+        .filter((purchase) => matchesSearch(`${purchase.supplier} ${purchase.items} ${purchase.status}`))
+        .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+
+      list.innerHTML = purchases.length ? "" : '<div class="empty">Todavía no hay compras.</div>';
+
+      purchases.forEach((purchase) => {
+        const debt = purchaseDebt(purchase);
+        const card = document.createElement("article");
+        card.className = `card ${debt > 0 ? "debt" : "paid"}`;
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <strong>${escapeHTML(purchase.supplier)}</strong>
+              <div class="muted">Compra: ${formatDate(purchase.date)}${purchase.dueDate ? ` · Vence: ${formatDate(purchase.dueDate)}` : ""}</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <div>${escapeHTML(purchase.items).replace(/\n/g, "<br>")}</div>
+          <div class="chips">
+            <span class="chip">Total ${money.format(purchase.total)}</span>
+            <span class="chip">Pagó ${money.format(purchase.paid || 0)}</span>
+            <span class="chip">${purchase.status}</span>
+          </div>
+          <div class="two">
+            <input inputmode="decimal" placeholder="Pago nuevo" data-purchase-payment="${purchase.id}">
+            <button class="ghost" type="button" data-add-purchase-payment="${purchase.id}">Anotar pago</button>
+          </div>
+          <div class="actions three">
+            <button class="ghost" type="button" data-purchase-paid="${purchase.id}">Pagada</button>
+            <button class="ghost" type="button" data-purchase-pending="${purchase.id}">Pendiente</button>
+            <button class="danger" type="button" data-delete-purchase="${purchase.id}">Borrar</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
     function renderDebts() {
       const list = $("#debtList");
       const rows = state.clients
@@ -1087,6 +1174,31 @@
           </div>
         `;
         list.appendChild(card);
+      });
+
+      const purchaseList = $("#purchaseDebtList");
+      const purchaseRows = state.purchases
+        .filter((purchase) => !debtOnly || purchaseDebt(purchase) > 0)
+        .filter((purchase) => matchesSearch(`${purchase.supplier} ${purchase.items} ${purchase.status}`))
+        .sort((a, b) => purchaseDebt(b) - purchaseDebt(a));
+
+      purchaseList.innerHTML = purchaseRows.length ? "" : '<div class="empty">No hay compras pendientes para mostrar.</div>';
+
+      purchaseRows.forEach((purchase) => {
+        const debt = purchaseDebt(purchase);
+        const card = document.createElement("article");
+        card.className = `card ${debt > 0 ? "debt" : "paid"}`;
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <strong>${escapeHTML(purchase.supplier)}</strong>
+              <div class="muted">${formatDate(purchase.date)}${purchase.dueDate ? ` · Vence: ${formatDate(purchase.dueDate)}` : ""}</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <div class="muted">${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+        `;
+        purchaseList.appendChild(card);
       });
     }
 
@@ -1135,6 +1247,25 @@
       });
       event.target.reset();
       $("#orderDate").value = todayISO;
+      save();
+      renderAll();
+    });
+
+    $("#purchaseForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      state.purchases.push({
+        id: id(),
+        supplier: $("#purchaseSupplier").value.trim(),
+        items: $("#purchaseItems").value.trim(),
+        total: numberFrom($("#purchaseTotal").value),
+        paid: numberFrom($("#purchasePaid").value),
+        date: $("#purchaseDate").value || todayISO,
+        dueDate: $("#purchaseDueDate").value,
+        status: "Pendiente"
+      });
+      event.target.reset();
+      $("#purchaseDate").value = todayISO;
       save();
       renderAll();
     });
@@ -1188,6 +1319,37 @@
         save();
         renderAll();
       }
+
+      if (button.dataset.deletePurchase && confirm("¿Borrar esta compra?")) {
+        state.purchases = state.purchases.filter((purchase) => purchase.id !== button.dataset.deletePurchase);
+        save();
+        renderAll();
+      }
+
+      if (button.dataset.purchasePaid) {
+        const purchase = state.purchases.find((item) => item.id === button.dataset.purchasePaid);
+        purchase.paid = purchase.total;
+        purchase.status = "Pagada";
+        save();
+        renderAll();
+      }
+
+      if (button.dataset.purchasePending) {
+        const purchase = state.purchases.find((item) => item.id === button.dataset.purchasePending);
+        purchase.status = "Pendiente";
+        save();
+        renderAll();
+      }
+
+      if (button.dataset.addPurchasePayment) {
+        const input = document.querySelector(`[data-purchase-payment="${button.dataset.addPurchasePayment}"]`);
+        const payment = numberFrom(input.value);
+        const purchase = state.purchases.find((item) => item.id === button.dataset.addPurchasePayment);
+        purchase.paid = Math.min(Number(purchase.total), Number(purchase.paid || 0) + payment);
+        purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
+        save();
+        renderAll();
+      }
     });
 
     function openView(name) {
@@ -1238,6 +1400,21 @@
       renderAll();
     });
 
+    $("#samplePurchases").addEventListener("click", () => {
+      state.purchases.push({
+        id: id(),
+        supplier: "Distribuidora Norte",
+        items: "10 cajas de fideos\n5 packs de aceite\n6 cajas de arroz",
+        total: 98000,
+        paid: 40000,
+        date: todayISO,
+        dueDate: todayISO,
+        status: "Pendiente"
+      });
+      save();
+      renderAll();
+    });
+
     $("#exportData").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -1256,6 +1433,7 @@
         if (!Array.isArray(imported.clients) || !Array.isArray(imported.orders)) throw new Error("Formato inválido");
         state.clients = imported.clients;
         state.orders = imported.orders;
+        state.purchases = Array.isArray(imported.purchases) ? imported.purchases : [];
         save();
         renderAll();
         alert("Copia restaurada.");
@@ -1268,6 +1446,7 @@
       if (!confirm("¿Borrar todos los clientes y pedidos?")) return;
       state.clients = [];
       state.orders = [];
+      state.purchases = [];
       save();
       renderAll();
     });
