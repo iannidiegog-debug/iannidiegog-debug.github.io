@@ -66,6 +66,49 @@
       color: var(--red);
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
+    .auth-screen {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background:
+        linear-gradient(135deg, rgba(20, 83, 45, 0.12), transparent 38%),
+        #f7f8f6;
+    }
+
+    .auth-card {
+      width: min(430px, 100%);
+      display: grid;
+      gap: 12px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .auth-logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 8px;
+    }
+
+    .auth-card h1 {
+      font-size: 26px;
+      margin-top: 4px;
+    }
+
+    .auth-error {
+      min-height: 20px;
+      color: var(--red);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
     .wrap {
       width: min(1180px, 100%);
       margin: 0 auto;
@@ -89,6 +132,12 @@
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .top-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
     }
 
     .brand img {
@@ -410,7 +459,29 @@
   </style>
 </head>
 <body>
-  <main class="wrap">
+  <section class="auth-screen" id="authScreen">
+    <form class="auth-card" id="authForm">
+      <img class="auth-logo" src="icon.svg" alt="">
+      <div>
+        <h1 id="authTitle">Configurar acceso</h1>
+        <p id="authHelp">La primera vez creá un usuario y una contraseña para este teléfono.</p>
+      </div>
+      <label>Usuario
+        <input id="authUser" autocomplete="username" required placeholder="Ej: tidial">
+      </label>
+      <label>Contraseña
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="4" placeholder="Mínimo 4 caracteres">
+      </label>
+      <label id="authConfirmWrap">Repetir contraseña
+        <input id="authConfirm" type="password" autocomplete="new-password" minlength="4">
+      </label>
+      <button type="submit" id="authButton">Crear acceso</button>
+      <div class="auth-error" id="authError" role="alert"></div>
+      <p class="muted">Este bloqueo protege los datos guardados en este teléfono.</p>
+    </form>
+  </section>
+
+  <main class="wrap" id="app" hidden>
     <header class="topbar">
       <div class="brand">
         <img src="icon.svg" alt="">
@@ -436,6 +507,9 @@
       <div class="search">
         <input id="search" placeholder="Buscar cliente, pedido o producto">
         <button class="ghost" type="button" id="clearSearch">Limpiar</button>
+      </div>
+      <div class="top-actions">
+        <button class="ghost" type="button" id="logoutButton">Salir</button>
       </div>
     </header>
 
@@ -528,7 +602,7 @@
     </section>
   </main>
 
-  <nav class="nav" aria-label="Secciones">
+  <nav class="nav" id="mainNav" aria-label="Secciones" hidden>
     <button class="active" type="button" data-open="clients" aria-label="Clientes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Clientes
@@ -549,10 +623,13 @@
 
   <script>
     const storageKey = "pedidos-tidial-v1";
+    const authStorageKey = "pedidos-tidial-auth-v1";
+    const authSessionKey = "pedidos-tidial-session-ok";
     const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
     const todayISO = new Date().toISOString().slice(0, 10);
 
     const state = load();
+    let authConfig = loadAuth();
     let debtOnly = false;
 
     const $ = (selector) => document.querySelector(selector);
@@ -564,6 +641,98 @@
       month: "long"
     }).format(new Date());
     $("#orderDate").value = todayISO;
+
+    setupAuthScreen();
+
+    function loadAuth() {
+      const saved = localStorage.getItem(authStorageKey);
+      if (!saved) return null;
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.user && parsed.salt && parsed.passwordHash ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function setupAuthScreen() {
+      const hasAccess = sessionStorage.getItem(authSessionKey) === "true" && authConfig;
+
+      if (hasAccess) {
+        unlockApp();
+        return;
+      }
+
+      $("#app").hidden = true;
+      $("#mainNav").hidden = true;
+      $("#authScreen").hidden = false;
+
+      if (authConfig) {
+        $("#authTitle").textContent = "Ingresar";
+        $("#authHelp").textContent = "Escribí usuario y contraseña para abrir Pedidos TIDIAL.";
+        $("#authButton").textContent = "Entrar";
+        $("#authConfirmWrap").hidden = true;
+        $("#authUser").value = authConfig.user;
+      }
+    }
+
+    async function hashPassword(password, salt) {
+      const text = `${salt}:${password}`;
+      const bytes = new TextEncoder().encode(text);
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(hash))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function unlockApp() {
+      sessionStorage.setItem(authSessionKey, "true");
+      $("#authScreen").hidden = true;
+      $("#app").hidden = false;
+      $("#mainNav").hidden = false;
+      renderAll();
+    }
+
+    $("#authForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("#authError").textContent = "";
+
+      const user = $("#authUser").value.trim();
+      const password = $("#authPassword").value;
+      const confirmation = $("#authConfirm").value;
+
+      if (!authConfig) {
+        if (password.length < 4) {
+          $("#authError").textContent = "La contraseña tiene que tener al menos 4 caracteres.";
+          return;
+        }
+        if (password !== confirmation) {
+          $("#authError").textContent = "Las contraseñas no coinciden.";
+          return;
+        }
+
+        const salt = crypto.randomUUID();
+        const passwordHash = await hashPassword(password, salt);
+        authConfig = { user, salt, passwordHash };
+        localStorage.setItem(authStorageKey, JSON.stringify(authConfig));
+        unlockApp();
+        return;
+      }
+
+      const passwordHash = await hashPassword(password, authConfig.salt);
+      if (user !== authConfig.user || passwordHash !== authConfig.passwordHash) {
+        $("#authError").textContent = "Usuario o contraseña incorrectos.";
+        return;
+      }
+
+      unlockApp();
+    });
+
+    $("#logoutButton").addEventListener("click", () => {
+      sessionStorage.removeItem(authSessionKey);
+      $("#authPassword").value = "";
+      setupAuthScreen();
+    });
 
     function load() {
       const saved = localStorage.getItem(storageKey);
@@ -936,7 +1105,9 @@
       navigator.serviceWorker.register("service-worker.js").catch(() => {});
     }
 
-    renderAll();
+    if (sessionStorage.getItem(authSessionKey) === "true") {
+      renderAll();
+    }
   </script>
 </body>
 </html>
