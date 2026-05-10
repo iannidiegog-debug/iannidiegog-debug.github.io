@@ -853,7 +853,8 @@
                 <input id="deliveryDate" type="date">
               </label>
             </div>
-            <button type="submit">Guardar pedido</button>
+            <button type="submit" id="orderSubmitButton">Guardar pedido</button>
+            <button class="ghost" type="button" id="cancelOrderEdit" hidden>Cancelar edición</button>
           </form>
           <div class="list" id="orderList"></div>
         </div>
@@ -888,7 +889,8 @@
                 <input id="purchaseDueDate" type="date">
               </label>
             </div>
-            <button type="submit">Guardar compra</button>
+            <button type="submit" id="purchaseSubmitButton">Guardar compra</button>
+            <button class="ghost" type="button" id="cancelPurchaseEdit" hidden>Cancelar edición</button>
           </form>
           <div class="list" id="purchaseList"></div>
         </div>
@@ -1012,6 +1014,8 @@
     let authConfig = loadAuth();
     let debtOnly = false;
     let calcExpression = "";
+    let editingOrderId = null;
+    let editingPurchaseId = null;
 
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => document.querySelectorAll(selector);
@@ -1445,6 +1449,8 @@
             <button class="ghost" type="button" data-add-payment="${order.id}">Anotar pago</button>
           </div>
           <div class="actions three">
+            <button class="ghost" type="button" data-edit-order="${order.id}">Editar</button>
+            <button class="ghost" type="button" data-order-payments="${order.id}">Pagos</button>
             <button class="ghost" type="button" data-delivered="${order.id}">${order.status === "Entregado" ? "Pendiente" : "Entregado"}</button>
             <button class="ghost" type="button" data-paid="${order.id}">Pagado</button>
             <button class="danger" type="button" data-delete-order="${order.id}">Borrar</button>
@@ -1489,6 +1495,8 @@
             <button class="ghost" type="button" data-add-purchase-payment="${purchase.id}">Anotar pago</button>
           </div>
           <div class="actions three">
+            <button class="ghost" type="button" data-edit-purchase="${purchase.id}">Editar</button>
+            <button class="ghost" type="button" data-purchase-payments="${purchase.id}">Pagos</button>
             <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}">Proveedor</button>
             <button class="ghost" type="button" data-purchase-paid="${purchase.id}">Pagada</button>
             <button class="danger" type="button" data-delete-purchase="${purchase.id}">Borrar</button>
@@ -1672,6 +1680,106 @@
       $("#detailOverlay").hidden = false;
     }
 
+    function renderPaymentDetail(type, itemId) {
+      const isOrder = type === "order";
+      const item = isOrder
+        ? state.orders.find((order) => order.id === itemId)
+        : state.purchases.find((purchase) => purchase.id === itemId);
+      if (!item) return;
+
+      const title = isOrder ? clientName(item.clientId) : item.supplier;
+      const paid = isOrder ? orderPaid(item) : purchasePaid(item);
+      const debt = isOrder ? orderDebt(item) : purchaseDebt(item);
+      const payments = itemPayments(item);
+      const deleteAttribute = isOrder ? "data-delete-order-payment" : "data-delete-purchase-payment";
+
+      $("#detailTitle").textContent = `Pagos: ${title}`;
+      $("#detailContent").innerHTML = `
+        <div class="detail-block">
+          <div class="row">
+            <div>
+              <strong>${isOrder ? "Pedido" : "Compra"} del ${formatDate(item.date)}</strong>
+              <div class="muted">${escapeHTML(item.items).replace(/\n/g, " · ")}</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <div class="chips">
+            <span class="chip">Total ${money.format(item.total)}</span>
+            <span class="chip">Pagó ${money.format(paid)}</span>
+            <span class="chip">Saldo ${money.format(debt)}</span>
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Pagos anotados</h2>
+          <div class="mini-list">
+            ${payments.length ? payments.map((payment) => `
+              <div class="mini-item">
+                <div class="row">
+                  <div>
+                    <strong>${formatDate(payment.date)}</strong>
+                    <div class="muted">${escapeHTML(payment.note || "Pago")}</div>
+                  </div>
+                  <div class="money good">${money.format(payment.amount)}</div>
+                </div>
+                <button class="danger" type="button" ${deleteAttribute}="${item.id}" data-payment-id="${payment.id}">Eliminar pago</button>
+              </div>
+            `).join("") : '<div class="empty">Sin pagos registrados.</div>'}
+          </div>
+        </div>
+      `;
+      $("#detailOverlay").hidden = false;
+    }
+
+    function resetOrderForm() {
+      editingOrderId = null;
+      $("#orderForm").reset();
+      $("#orderDate").value = todayISO;
+      $("#orderSubmitButton").textContent = "Guardar pedido";
+      $("#cancelOrderEdit").hidden = true;
+    }
+
+    function startOrderEdit(orderId) {
+      const order = state.orders.find((item) => item.id === orderId);
+      if (!order) return;
+
+      editingOrderId = order.id;
+      $("#orderClient").value = order.clientId;
+      $("#orderItems").value = order.items;
+      $("#orderTotal").value = order.total;
+      $("#orderPaid").value = "";
+      $("#orderDate").value = order.date || todayISO;
+      $("#deliveryDate").value = order.deliveryDate || "";
+      $("#orderSubmitButton").textContent = "Actualizar pedido";
+      $("#cancelOrderEdit").hidden = false;
+      openView("orders");
+      $("#orderItems").focus();
+    }
+
+    function resetPurchaseForm() {
+      editingPurchaseId = null;
+      $("#purchaseForm").reset();
+      $("#purchaseDate").value = todayISO;
+      $("#purchaseSubmitButton").textContent = "Guardar compra";
+      $("#cancelPurchaseEdit").hidden = true;
+    }
+
+    function startPurchaseEdit(purchaseId) {
+      const purchase = state.purchases.find((item) => item.id === purchaseId);
+      if (!purchase) return;
+
+      editingPurchaseId = purchase.id;
+      $("#purchaseSupplier").value = purchase.supplier;
+      $("#purchaseItems").value = purchase.items;
+      $("#purchaseTotal").value = purchase.total;
+      $("#purchasePaid").value = "";
+      $("#purchaseDate").value = purchase.date || todayISO;
+      $("#purchaseDueDate").value = purchase.dueDate || "";
+      $("#purchaseSubmitButton").textContent = "Actualizar compra";
+      $("#cancelPurchaseEdit").hidden = false;
+      openView("purchases");
+      $("#purchaseItems").focus();
+    }
+
     function formatDate(value) {
       if (!value) return "";
       const [year, month, day] = value.split("-");
@@ -1720,19 +1828,36 @@
         return;
       }
 
-      state.orders.push({
-        id: id(),
-        clientId: $("#orderClient").value,
-        items: $("#orderItems").value.trim(),
-        total,
-        paid: 0,
-        payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#orderDate").value || todayISO, note: "Pago inicial" }] : [],
-        date: $("#orderDate").value || todayISO,
-        deliveryDate: $("#deliveryDate").value,
-        status: "Pendiente"
-      });
-      event.target.reset();
-      $("#orderDate").value = todayISO;
+      if (editingOrderId) {
+        const order = state.orders.find((item) => item.id === editingOrderId);
+        const paidAlready = orderPaid(order);
+        if (paidAlready > total) {
+          alert("El nuevo total no puede ser menor que lo que ya está pagado. Primero eliminá o corregí pagos.");
+          return;
+        }
+        order.clientId = $("#orderClient").value;
+        order.items = $("#orderItems").value.trim();
+        order.total = total;
+        order.date = $("#orderDate").value || todayISO;
+        order.deliveryDate = $("#deliveryDate").value;
+        if (paid > 0) {
+          order.payments = Array.isArray(order.payments) ? order.payments : [];
+          order.payments.push({ id: id(), amount: paid, date: order.date, note: "Pago agregado al editar" });
+        }
+      } else {
+        state.orders.push({
+          id: id(),
+          clientId: $("#orderClient").value,
+          items: $("#orderItems").value.trim(),
+          total,
+          paid: 0,
+          payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#orderDate").value || todayISO, note: "Pago inicial" }] : [],
+          date: $("#orderDate").value || todayISO,
+          deliveryDate: $("#deliveryDate").value,
+          status: "Pendiente"
+        });
+      }
+      resetOrderForm();
       save();
       renderAll();
     });
@@ -1750,22 +1875,43 @@
         return;
       }
 
-      state.purchases.push({
-        id: id(),
-        supplier: $("#purchaseSupplier").value.trim(),
-        items: $("#purchaseItems").value.trim(),
-        total,
-        paid: 0,
-        payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#purchaseDate").value || todayISO, note: "Pago inicial" }] : [],
-        date: $("#purchaseDate").value || todayISO,
-        dueDate: $("#purchaseDueDate").value,
-        status: "Pendiente"
-      });
-      event.target.reset();
-      $("#purchaseDate").value = todayISO;
+      if (editingPurchaseId) {
+        const purchase = state.purchases.find((item) => item.id === editingPurchaseId);
+        const paidAlready = purchasePaid(purchase);
+        if (paidAlready > total) {
+          alert("El nuevo total no puede ser menor que lo que ya está pagado. Primero eliminá o corregí pagos.");
+          return;
+        }
+        purchase.supplier = $("#purchaseSupplier").value.trim();
+        purchase.items = $("#purchaseItems").value.trim();
+        purchase.total = total;
+        purchase.date = $("#purchaseDate").value || todayISO;
+        purchase.dueDate = $("#purchaseDueDate").value;
+        purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
+        if (paid > 0) {
+          purchase.payments = Array.isArray(purchase.payments) ? purchase.payments : [];
+          purchase.payments.push({ id: id(), amount: paid, date: purchase.date, note: "Pago agregado al editar" });
+        }
+      } else {
+        state.purchases.push({
+          id: id(),
+          supplier: $("#purchaseSupplier").value.trim(),
+          items: $("#purchaseItems").value.trim(),
+          total,
+          paid: 0,
+          payments: paid > 0 ? [{ id: id(), amount: paid, date: $("#purchaseDate").value || todayISO, note: "Pago inicial" }] : [],
+          date: $("#purchaseDate").value || todayISO,
+          dueDate: $("#purchaseDueDate").value,
+          status: "Pendiente"
+        });
+      }
+      resetPurchaseForm();
       save();
       renderAll();
     });
+
+    $("#cancelOrderEdit").addEventListener("click", resetOrderForm);
+    $("#cancelPurchaseEdit").addEventListener("click", resetPurchaseForm);
 
     document.body.addEventListener("click", (event) => {
       const button = event.target.closest("button");
@@ -1789,6 +1935,24 @@
 
       if (button.dataset.providerDetail) {
         renderProviderDetail(button.dataset.providerDetail);
+      }
+
+      if (button.dataset.orderPayments) {
+        renderPaymentDetail("order", button.dataset.orderPayments);
+      }
+
+      if (button.dataset.purchasePayments) {
+        renderPaymentDetail("purchase", button.dataset.purchasePayments);
+      }
+
+      if (button.dataset.editOrder) {
+        closeDetail();
+        startOrderEdit(button.dataset.editOrder);
+      }
+
+      if (button.dataset.editPurchase) {
+        closeDetail();
+        startPurchaseEdit(button.dataset.editPurchase);
       }
 
       if (button.dataset.whatsapp) {
@@ -1841,6 +2005,19 @@
         renderAll();
       }
 
+      if (button.dataset.deleteOrderPayment && confirm("¿Eliminar este pago?")) {
+        const order = state.orders.find((item) => item.id === button.dataset.deleteOrderPayment);
+        const paymentId = button.dataset.paymentId;
+        if (paymentId.endsWith("-inicial")) {
+          order.paid = 0;
+        } else {
+          order.payments = (order.payments || []).filter((payment) => payment.id !== paymentId);
+        }
+        save();
+        renderAll();
+        renderPaymentDetail("order", order.id);
+      }
+
       if (button.dataset.deletePurchase && confirm("¿Borrar esta compra?")) {
         state.purchases = state.purchases.filter((purchase) => purchase.id !== button.dataset.deletePurchase);
         save();
@@ -1880,6 +2057,20 @@
         purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
         save();
         renderAll();
+      }
+
+      if (button.dataset.deletePurchasePayment && confirm("¿Eliminar este pago?")) {
+        const purchase = state.purchases.find((item) => item.id === button.dataset.deletePurchasePayment);
+        const paymentId = button.dataset.paymentId;
+        if (paymentId.endsWith("-inicial")) {
+          purchase.paid = 0;
+        } else {
+          purchase.payments = (purchase.payments || []).filter((payment) => payment.id !== paymentId);
+        }
+        purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
+        save();
+        renderAll();
+        renderPaymentDetail("purchase", purchase.id);
       }
     });
 
