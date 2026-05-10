@@ -865,12 +865,31 @@
       <section class="view" data-view="purchases">
         <div class="panel">
           <div class="panel-head">
-            <h2>Compras</h2>
+            <h2>Proveedores</h2>
+          </div>
+          <form class="form" id="supplierForm">
+            <label>Nombre proveedor
+              <input id="supplierName" required placeholder="Distribuidora Norte">
+            </label>
+            <label>Teléfono
+              <input id="supplierPhone" inputmode="tel" placeholder="11 5555-5555">
+            </label>
+            <label>Dirección
+              <input id="supplierAddress" placeholder="Calle y número">
+            </label>
+            <label>Nota
+              <textarea id="supplierNote" placeholder="Horario de atención, vendedor, condiciones"></textarea>
+            </label>
+            <button type="submit" id="supplierSubmitButton">Guardar proveedor</button>
+            <button class="ghost" type="button" id="cancelSupplierEdit" hidden>Cancelar edición</button>
+          </form>
+          <div class="list" id="providerList"></div>
+          <div class="panel-head">
+            <h2>Nueva compra</h2>
           </div>
           <form class="form" id="purchaseForm">
             <label>Proveedor
-              <input id="purchaseSupplier" list="supplierOptions" required placeholder="Distribuidora Norte">
-              <datalist id="supplierOptions"></datalist>
+              <select id="purchaseSupplier" required></select>
             </label>
             <label>Productos comprados
               <textarea id="purchaseItems" required placeholder="10 cajas de fideos&#10;5 packs de aceite"></textarea>
@@ -894,10 +913,6 @@
             <button type="submit" id="purchaseSubmitButton">Guardar compra</button>
             <button class="ghost" type="button" id="cancelPurchaseEdit" hidden>Cancelar edición</button>
           </form>
-          <div class="panel-head">
-            <h2>Proveedores</h2>
-          </div>
-          <div class="list" id="providerList"></div>
           <div class="panel-head">
             <h2>Historial de compras</h2>
           </div>
@@ -1024,10 +1039,12 @@
     let debtOnly = false;
     let calcExpression = "";
     let editingClientId = null;
+    let editingSupplierId = null;
     let editingOrderId = null;
     let editingPurchaseId = null;
     let detailReturn = null;
     let clientFormReturn = null;
+    let supplierFormReturn = null;
     let orderFormReturn = null;
     let purchaseFormReturn = null;
 
@@ -1056,6 +1073,7 @@
     }
 
     function setupAuthScreen() {
+      state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
       const hasAccess = sessionStorage.getItem(authSessionKey) === "true" && authConfig;
 
       if (hasAccess) {
@@ -1267,16 +1285,17 @@
 
     function load() {
       const saved = localStorage.getItem(storageKey);
-      if (!saved) return { clients: [], orders: [], purchases: [] };
+      if (!saved) return { clients: [], suppliers: [], orders: [], purchases: [] };
       try {
         const parsed = JSON.parse(saved);
         return {
           clients: Array.isArray(parsed.clients) ? parsed.clients : [],
+          suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
           orders: Array.isArray(parsed.orders) ? parsed.orders : [],
           purchases: Array.isArray(parsed.purchases) ? parsed.purchases : []
         };
       } catch {
-        return { clients: [], orders: [], purchases: [] };
+        return { clients: [], suppliers: [], orders: [], purchases: [] };
       }
     }
 
@@ -1323,6 +1342,10 @@
 
     function supplierNames() {
       const names = new Map();
+      state.suppliers.forEach((supplier) => {
+        const name = String(supplier.name || "").trim();
+        if (name && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+      });
       state.purchases.forEach((purchase) => {
         const name = String(purchase.supplier || "").trim();
         if (name && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
@@ -1354,6 +1377,11 @@
     function supplierNameFromInput(value) {
       const name = String(value || "").trim();
       return supplierNames().find((supplierName) => supplierName.toLowerCase() === name.toLowerCase()) || name;
+    }
+
+    function supplierRecordByName(supplierName) {
+      const key = String(supplierName || "").trim().toLowerCase();
+      return state.suppliers.find((supplier) => String(supplier.name || "").trim().toLowerCase() === key) || null;
     }
 
     function clientOrders(clientId) {
@@ -1594,8 +1622,20 @@
     }
 
     function renderSupplierOptions() {
-      const list = $("#supplierOptions");
-      list.innerHTML = supplierNames().map((name) => `<option value="${escapeHTML(name)}"></option>`).join("");
+      const select = $("#purchaseSupplier");
+      select.innerHTML = "";
+
+      if (supplierNames().length === 0) {
+        select.innerHTML = '<option value="">Primero cargá un proveedor</option>';
+        return;
+      }
+
+      supplierNames().forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
     }
 
     function renderClients() {
@@ -1727,9 +1767,13 @@
     function renderProviders() {
       const list = $("#providerList");
       const providers = supplierNames()
-        .filter((supplierName) => matchesSearch(`${supplierName} ${supplierPurchases(supplierName).map((purchase) => purchase.items).join(" ")}`))
+        .filter((supplierName) => {
+          const supplier = supplierRecordByName(supplierName);
+          return matchesSearch(`${supplierName} ${supplier?.phone || ""} ${supplier?.address || ""} ${supplier?.note || ""} ${supplierPurchases(supplierName).map((purchase) => purchase.items).join(" ")}`);
+        })
         .map((supplierName) => ({
           name: supplierName,
+          supplier: supplierRecordByName(supplierName),
           purchases: supplierPurchases(supplierName),
           debt: supplierDebt(supplierName),
           total: supplierTotal(supplierName)
@@ -1738,19 +1782,25 @@
       list.innerHTML = providers.length ? "" : '<div class="empty">Todavía no hay proveedores. Cargá una compra para crear el primero.</div>';
 
       providers.forEach((provider) => {
+        const whatsapp = whatsappURL(provider.supplier?.phone);
         const card = document.createElement("article");
         card.className = `card ${provider.debt > 0 ? "debt" : "paid"}`;
         card.innerHTML = `
           <div class="row">
             <div>
               <strong>${escapeHTML(provider.name)}</strong>
+              <div class="muted">${escapeHTML(provider.supplier?.phone || "Sin teléfono")}</div>
+              <div class="muted">${escapeHTML(provider.supplier?.address || "Sin dirección")}</div>
               <div class="muted">${provider.purchases.length} compras en historial · Total ${money.format(provider.total)}</div>
             </div>
             <div class="money ${provider.debt > 0 ? "bad" : "good"}">${money.format(provider.debt)}</div>
           </div>
-          <div class="actions">
+          ${provider.supplier?.note ? `<div class="muted">${escapeHTML(provider.supplier.note)}</div>` : ""}
+          <div class="actions three">
             <button class="ghost" type="button" data-provider-detail="${escapeHTML(provider.name)}">Ficha</button>
             <button class="ghost" type="button" data-quick-purchase="${escapeHTML(provider.name)}" data-return-provider="${escapeHTML(provider.name)}">Nueva compra</button>
+            ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : `<button class="ghost" type="button" disabled>WhatsApp</button>`}
+            ${provider.supplier ? `<button class="ghost" type="button" data-edit-supplier="${provider.supplier.id}">Editar</button>` : ""}
           </div>
         `;
         list.appendChild(card);
@@ -1894,10 +1944,12 @@
     }
 
     function renderProviderDetail(supplierName, returnTarget = null) {
+      const supplier = supplierRecordByName(supplierName);
       const purchases = supplierPurchases(supplierName)
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
       const debt = supplierDebt(supplierName);
       const credit = supplierCredit(supplierName);
+      const whatsapp = whatsappURL(supplier?.phone);
       detailReturn = returnTarget;
 
       $("#detailTitle").textContent = supplierName;
@@ -1911,7 +1963,14 @@
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
           ${credit > 0 ? `<div class="notice">Saldo a favor: ${money.format(credit)}. Se descuenta automáticamente del saldo del proveedor.</div>` : ""}
-          <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
+          <div class="muted">${escapeHTML(supplier?.phone || "Sin teléfono")}</div>
+          <div class="muted">${escapeHTML(supplier?.address || "Sin dirección")}</div>
+          ${supplier?.note ? `<div class="muted">${escapeHTML(supplier.note)}</div>` : ""}
+          <div class="actions">
+            <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
+            ${supplier ? `<button class="ghost" type="button" data-edit-supplier="${supplier.id}" data-return-provider="${escapeHTML(supplierName)}">Editar ficha</button>` : ""}
+            ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
+          </div>
         </div>
         <div class="detail-block">
           <h2>Historial de compras</h2>
@@ -2060,6 +2119,39 @@
       $("#clientName").focus();
     }
 
+    function resetSupplierForm(options = {}) {
+      editingSupplierId = null;
+      $("#supplierForm").reset();
+      $("#supplierSubmitButton").textContent = "Guardar proveedor";
+      $("#cancelSupplierEdit").textContent = "Cancelar edición";
+      $("#cancelSupplierEdit").hidden = true;
+      if (!options.keepReturn) supplierFormReturn = null;
+    }
+
+    function finishSupplierForm() {
+      const target = supplierFormReturn;
+      resetSupplierForm();
+      returnToTarget(target);
+    }
+
+    function startSupplierEdit(supplierId, returnTarget = null) {
+      const supplier = state.suppliers.find((item) => item.id === supplierId);
+      if (!supplier) return;
+
+      supplierFormReturn = returnTarget;
+      editingSupplierId = supplier.id;
+      $("#supplierName").value = supplier.name;
+      $("#supplierPhone").value = supplier.phone || "";
+      $("#supplierAddress").value = supplier.address || "";
+      $("#supplierNote").value = supplier.note || "";
+      $("#supplierSubmitButton").textContent = "Actualizar proveedor";
+      $("#cancelSupplierEdit").textContent = "Cancelar edición";
+      $("#cancelSupplierEdit").hidden = false;
+      hideDetail();
+      openView("purchases");
+      $("#supplierName").focus();
+    }
+
     function resetOrderForm(options = {}) {
       editingOrderId = null;
       $("#orderForm").reset();
@@ -2133,7 +2225,7 @@
     function startNewPurchase(supplierName = "", returnTarget = null) {
       resetPurchaseForm();
       purchaseFormReturn = returnTarget;
-      $("#purchaseSupplier").value = supplierName;
+      if (supplierName) $("#purchaseSupplier").value = supplierName;
       $("#cancelPurchaseEdit").textContent = returnTarget ? "Cancelar" : "Cancelar edición";
       $("#cancelPurchaseEdit").hidden = !returnTarget;
       hideDetail();
@@ -2199,6 +2291,40 @@
       }
       const returnTarget = clientFormReturn;
       resetClientForm();
+      save();
+      renderAll();
+      returnToTarget(returnTarget);
+    });
+
+    $("#supplierForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = $("#supplierName").value.trim();
+      if (state.suppliers.some((supplier) => supplier.id !== editingSupplierId && supplier.name.toLowerCase() === name.toLowerCase())) {
+        alert("Ese proveedor ya está cargado.");
+        return;
+      }
+      if (editingSupplierId) {
+        const supplier = state.suppliers.find((item) => item.id === editingSupplierId);
+        const oldName = supplier.name;
+        supplier.name = name;
+        supplier.phone = $("#supplierPhone").value.trim();
+        supplier.address = $("#supplierAddress").value.trim();
+        supplier.note = $("#supplierNote").value.trim();
+        state.purchases.forEach((purchase) => {
+          if (purchase.supplier.toLowerCase() === oldName.toLowerCase()) purchase.supplier = name;
+        });
+        if (supplierFormReturn?.type === "provider") supplierFormReturn = { type: "provider", id: name };
+      } else {
+        state.suppliers.push({
+          id: id(),
+          name,
+          phone: $("#supplierPhone").value.trim(),
+          address: $("#supplierAddress").value.trim(),
+          note: $("#supplierNote").value.trim()
+        });
+      }
+      const returnTarget = supplierFormReturn;
+      resetSupplierForm();
       save();
       renderAll();
       returnToTarget(returnTarget);
@@ -2290,6 +2416,7 @@
     });
 
     $("#cancelClientEdit").addEventListener("click", finishClientForm);
+    $("#cancelSupplierEdit").addEventListener("click", finishSupplierForm);
     $("#cancelOrderEdit").addEventListener("click", finishOrderForm);
     $("#cancelPurchaseEdit").addEventListener("click", finishPurchaseForm);
 
@@ -2348,6 +2475,10 @@
 
       if (button.dataset.editClient) {
         startClientEdit(button.dataset.editClient, targetFromButton(button));
+      }
+
+      if (button.dataset.editSupplier) {
+        startSupplierEdit(button.dataset.editSupplier, targetFromButton(button));
       }
 
       if (button.dataset.editOrder) {
@@ -2523,6 +2654,10 @@
         rows.push(["Cliente", client.name, "", `${client.phone || ""} ${client.address || ""} ${client.note || ""}`, "", "", clientDebt(client.id), ""]);
       });
 
+      state.suppliers.forEach((supplier) => {
+        rows.push(["Proveedor", supplier.name, "", `${supplier.phone || ""} ${supplier.address || ""} ${supplier.note || ""}`, supplierTotal(supplier.name), supplierPaid(supplier.name), supplierDebt(supplier.name), ""]);
+      });
+
       state.orders.forEach((order) => {
         rows.push(["Pedido", clientName(order.clientId), order.date, order.items.replace(/\n/g, " / "), order.total, orderPaid(order), orderDebt(order), order.status]);
         itemPayments(order).forEach((payment) => {
@@ -2548,6 +2683,7 @@
         const imported = JSON.parse(await file.text());
         if (!Array.isArray(imported.clients) || !Array.isArray(imported.orders)) throw new Error("Formato inválido");
         state.clients = imported.clients;
+        state.suppliers = Array.isArray(imported.suppliers) ? imported.suppliers : [];
         state.orders = imported.orders;
         state.purchases = Array.isArray(imported.purchases) ? imported.purchases : [];
         save();
@@ -2561,6 +2697,7 @@
     $("#wipeData").addEventListener("click", () => {
       if (!confirm("¿Borrar todos los clientes y pedidos?")) return;
       state.clients = [];
+      state.suppliers = [];
       state.orders = [];
       state.purchases = [];
       save();
