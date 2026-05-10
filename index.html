@@ -29,7 +29,9 @@
 
     body {
       margin: 0;
-      background: #f7f8f6;
+      background:
+        linear-gradient(180deg, #ecf4ef 0, #f7f8f6 260px),
+        #f7f8f6;
       color: var(--ink);
       font-family: Arial, Helvetica, sans-serif;
     }
@@ -110,7 +112,7 @@
     }
 
     .wrap {
-      width: min(1180px, 100%);
+      width: min(980px, 100%);
       margin: 0 auto;
       padding: 14px 14px 88px;
     }
@@ -123,7 +125,7 @@
       gap: 12px;
       padding: 12px 14px 14px;
       margin: 0 -14px 14px;
-      background: rgba(247, 248, 246, 0.94);
+      background: rgba(236, 244, 239, 0.94);
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(14px);
     }
@@ -138,6 +140,10 @@
       display: flex;
       justify-content: flex-end;
       gap: 8px;
+    }
+
+    .top-actions button {
+      min-height: 38px;
     }
 
     .brand img {
@@ -186,6 +192,88 @@
       margin-top: 4px;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .home {
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero {
+      display: grid;
+      gap: 14px;
+      background: var(--green);
+      color: white;
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h2 {
+      font-size: 28px;
+      color: white;
+    }
+
+    .hero p {
+      color: rgba(255, 255, 255, 0.82);
+      margin: 6px 0 0;
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .quick-actions button {
+      min-height: 64px;
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      gap: 4px;
+      background: white;
+      color: var(--green);
+      text-align: left;
+    }
+
+    .quick-actions button span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .dash-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 8px 20px rgba(21, 46, 35, 0.08);
+    }
+
+    .dash-card strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    .dash-card span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .recent-list {
+      padding-top: 0;
     }
 
     .search {
@@ -368,7 +456,7 @@
       bottom: 0;
       z-index: 20;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 6px;
       padding: 8px max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right));
       background: rgba(255, 255, 255, 0.96);
@@ -428,20 +516,16 @@
       }
 
       .views {
-        grid-template-columns: 360px 1fr;
-        align-items: start;
-      }
-
-      .view {
         display: block;
       }
 
-      .view[data-view="backup"] {
-        grid-column: 1 / -1;
-      }
-
       .nav {
-        display: none;
+        width: min(980px, calc(100% - 24px));
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        border: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
       }
     }
 
@@ -453,6 +537,11 @@
       }
 
       .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-actions,
+      .dashboard {
         grid-template-columns: 1fr;
       }
     }
@@ -509,12 +598,57 @@
         <button class="ghost" type="button" id="clearSearch">Limpiar</button>
       </div>
       <div class="top-actions">
+        <button type="button" data-open="orders">Nuevo pedido</button>
         <button class="ghost" type="button" id="logoutButton">Salir</button>
       </div>
     </header>
 
     <section class="views">
-      <section class="view active" data-view="clients">
+      <section class="view active" data-view="home">
+        <div class="home">
+          <section class="hero">
+            <div>
+              <h2>Trabajo del día</h2>
+              <p>Accesos rápidos para cargar ventas, revisar entregas y cobrar pendientes.</p>
+            </div>
+            <div class="quick-actions">
+              <button type="button" data-open="orders">Nuevo pedido <span>Cargar venta y pago</span></button>
+              <button type="button" data-open="clients">Nuevo cliente <span>Nombre, teléfono y dirección</span></button>
+              <button type="button" data-open="debts">Ver deudas <span>Clientes con saldo pendiente</span></button>
+              <button type="button" data-open="backup">Hacer copia <span>Guardar respaldo del teléfono</span></button>
+            </div>
+          </section>
+
+          <section class="dashboard" aria-label="Tablero">
+            <div class="dash-card">
+              <strong id="dashDebt">$0</strong>
+              <span>Total a cobrar</span>
+            </div>
+            <div class="dash-card">
+              <strong id="dashPending">0</strong>
+              <span>Pedidos pendientes</span>
+            </div>
+            <div class="dash-card">
+              <strong id="dashClients">0</strong>
+              <span>Clientes cargados</span>
+            </div>
+            <div class="dash-card">
+              <strong id="dashToday">$0</strong>
+              <span>Vendido hoy</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Últimos pedidos</h2>
+              <button class="ghost" type="button" data-open="orders">Ver todos</button>
+            </div>
+            <div class="list recent-list" id="recentOrders"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" data-view="clients">
         <div class="panel">
           <div class="panel-head">
             <h2>Clientes</h2>
@@ -603,7 +737,11 @@
   </main>
 
   <nav class="nav" id="mainNav" aria-label="Secciones" hidden>
-    <button class="active" type="button" data-open="clients" aria-label="Clientes">
+    <button class="active" type="button" data-open="home" aria-label="Inicio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+      Inicio
+    </button>
+    <button type="button" data-open="clients" aria-label="Clientes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Clientes
     </button>
@@ -783,6 +921,7 @@
 
     function renderAll() {
       renderSummary();
+      renderDashboard();
       renderClientOptions();
       renderClients();
       renderOrders();
@@ -799,6 +938,43 @@
       $("#ordersToday").textContent = money.format(todayTotal);
       $("#pendingDeliveries").textContent = pending;
       $("#totalDebt").textContent = money.format(totalDebt);
+    }
+
+    function renderDashboard() {
+      const todayTotal = state.orders
+        .filter((order) => order.date === todayISO)
+        .reduce((sum, order) => sum + Number(order.total), 0);
+      const pending = state.orders.filter((order) => order.status !== "Entregado").length;
+      const totalDebt = state.orders.reduce((sum, order) => sum + orderDebt(order), 0);
+      const recentOrders = state.orders
+        .slice()
+        .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`))
+        .slice(0, 3);
+
+      $("#dashDebt").textContent = money.format(totalDebt);
+      $("#dashPending").textContent = pending;
+      $("#dashClients").textContent = state.clients.length;
+      $("#dashToday").textContent = money.format(todayTotal);
+
+      const list = $("#recentOrders");
+      list.innerHTML = recentOrders.length ? "" : '<div class="empty">Todavía no hay pedidos cargados.</div>';
+
+      recentOrders.forEach((order) => {
+        const debt = orderDebt(order);
+        const card = document.createElement("article");
+        card.className = `card ${debt > 0 ? "debt" : "paid"}`;
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <strong>${escapeHTML(clientName(order.clientId))}</strong>
+              <div class="muted">${formatDate(order.date)} · ${escapeHTML(order.status)}</div>
+            </div>
+            <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
+          </div>
+          <div class="muted">${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+        `;
+        list.appendChild(card);
+      });
     }
 
     function renderClientOptions() {
@@ -972,8 +1148,7 @@
       if (!button) return;
 
       if (button.dataset.open) {
-        $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === button.dataset.open));
-        $$(".nav button").forEach((navButton) => navButton.classList.toggle("active", navButton === button));
+        openView(button.dataset.open);
       }
 
       if (button.dataset.quickOrder) {
