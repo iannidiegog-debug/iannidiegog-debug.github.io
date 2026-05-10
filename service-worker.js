@@ -1,4 +1,4 @@
-const CACHE_NAME = "pedidos-tidial-v10";
+const CACHE_NAME = "pedidos-tidial-v11";
 const FILES = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

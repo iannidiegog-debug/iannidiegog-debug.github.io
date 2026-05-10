@@ -1599,6 +1599,10 @@
                   <span class="chip">Pagó ${money.format(orderPaid(order))}</span>
                   <span class="chip">${escapeHTML(order.status)}</span>
                 </div>
+                <div class="actions">
+                  <button class="ghost" type="button" data-order-payments="${order.id}">Ver pagos</button>
+                  <button class="ghost" type="button" data-edit-order="${order.id}">Editar pedido</button>
+                </div>
               </div>
             `).join("") : '<div class="empty">Sin pedidos cargados.</div>'}
           </div>
@@ -1614,6 +1618,9 @@
                     <span class="money good">${money.format(payment.amount)}</span>
                   </div>
                   <div class="muted">${escapeHTML(payment.note || "Pago")} · Pedido ${formatDate(order.date)}</div>
+                  <div class="actions">
+                    <button class="ghost" type="button" data-order-payments="${order.id}">Abrir pedido</button>
+                  </div>
                 </div>
               `)).join("")
               : '<div class="empty">Sin pagos registrados.</div>'}
@@ -1656,6 +1663,10 @@
                   <span class="chip">Pagó ${money.format(purchasePaid(purchase))}</span>
                   <span class="chip">${escapeHTML(purchase.status)}</span>
                 </div>
+                <div class="actions">
+                  <button class="ghost" type="button" data-purchase-payments="${purchase.id}">Ver pagos</button>
+                  <button class="ghost" type="button" data-edit-purchase="${purchase.id}">Editar compra</button>
+                </div>
               </div>
             `).join("") : '<div class="empty">Sin compras cargadas.</div>'}
           </div>
@@ -1671,6 +1682,9 @@
                     <span class="money good">${money.format(payment.amount)}</span>
                   </div>
                   <div class="muted">${escapeHTML(payment.note || "Pago")} · Compra ${formatDate(purchase.date)}</div>
+                  <div class="actions">
+                    <button class="ghost" type="button" data-purchase-payments="${purchase.id}">Abrir compra</button>
+                  </div>
                 </div>
               `)).join("")
               : '<div class="empty">Sin pagos registrados.</div>'}
