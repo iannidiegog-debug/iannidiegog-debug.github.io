@@ -869,7 +869,8 @@
           </div>
           <form class="form" id="purchaseForm">
             <label>Proveedor
-              <input id="purchaseSupplier" required placeholder="Distribuidora Norte">
+              <input id="purchaseSupplier" list="supplierOptions" required placeholder="Distribuidora Norte">
+              <datalist id="supplierOptions"></datalist>
             </label>
             <label>Productos comprados
               <textarea id="purchaseItems" required placeholder="10 cajas de fideos&#10;5 packs de aceite"></textarea>
@@ -893,6 +894,13 @@
             <button type="submit" id="purchaseSubmitButton">Guardar compra</button>
             <button class="ghost" type="button" id="cancelPurchaseEdit" hidden>Cancelar edición</button>
           </form>
+          <div class="panel-head">
+            <h2>Proveedores</h2>
+          </div>
+          <div class="list" id="providerList"></div>
+          <div class="panel-head">
+            <h2>Historial de compras</h2>
+          </div>
           <div class="list" id="purchaseList"></div>
         </div>
       </section>
@@ -1313,6 +1321,33 @@
       return Math.max(0, Number(purchase.total) - purchasePaid(purchase));
     }
 
+    function supplierNames() {
+      const names = new Map();
+      state.purchases.forEach((purchase) => {
+        const name = String(purchase.supplier || "").trim();
+        if (name && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+      });
+      return [...names.values()].sort((a, b) => a.localeCompare(b));
+    }
+
+    function supplierPurchases(supplierName) {
+      const key = String(supplierName || "").trim().toLowerCase();
+      return state.purchases.filter((purchase) => String(purchase.supplier || "").trim().toLowerCase() === key);
+    }
+
+    function supplierDebt(supplierName) {
+      return supplierPurchases(supplierName).reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
+    }
+
+    function supplierTotal(supplierName) {
+      return supplierPurchases(supplierName).reduce((sum, purchase) => sum + Number(purchase.total || 0), 0);
+    }
+
+    function supplierNameFromInput(value) {
+      const name = String(value || "").trim();
+      return supplierNames().find((supplierName) => supplierName.toLowerCase() === name.toLowerCase()) || name;
+    }
+
     function clientDebt(clientId) {
       return state.orders
         .filter((order) => order.clientId === clientId)
@@ -1345,8 +1380,10 @@
     function renderAll() {
       renderDashboard();
       renderClientOptions();
+      renderSupplierOptions();
       renderClients();
       renderOrders();
+      renderProviders();
       renderPurchases();
       renderDebts();
     }
@@ -1540,6 +1577,11 @@
         });
     }
 
+    function renderSupplierOptions() {
+      const list = $("#supplierOptions");
+      list.innerHTML = supplierNames().map((name) => `<option value="${escapeHTML(name)}"></option>`).join("");
+    }
+
     function renderClients() {
       const list = $("#clientList");
       const clients = state.clients
@@ -1660,6 +1702,39 @@
             <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}">Proveedor</button>
             <button class="ghost" type="button" data-purchase-paid="${purchase.id}">Pagada</button>
             <button class="danger" type="button" data-delete-purchase="${purchase.id}">Borrar</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function renderProviders() {
+      const list = $("#providerList");
+      const providers = supplierNames()
+        .filter((supplierName) => matchesSearch(`${supplierName} ${supplierPurchases(supplierName).map((purchase) => purchase.items).join(" ")}`))
+        .map((supplierName) => ({
+          name: supplierName,
+          purchases: supplierPurchases(supplierName),
+          debt: supplierDebt(supplierName),
+          total: supplierTotal(supplierName)
+        }));
+
+      list.innerHTML = providers.length ? "" : '<div class="empty">Todavía no hay proveedores. Cargá una compra para crear el primero.</div>';
+
+      providers.forEach((provider) => {
+        const card = document.createElement("article");
+        card.className = `card ${provider.debt > 0 ? "debt" : "paid"}`;
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <strong>${escapeHTML(provider.name)}</strong>
+              <div class="muted">${provider.purchases.length} compras en historial · Total ${money.format(provider.total)}</div>
+            </div>
+            <div class="money ${provider.debt > 0 ? "bad" : "good"}">${money.format(provider.debt)}</div>
+          </div>
+          <div class="actions">
+            <button class="ghost" type="button" data-provider-detail="${escapeHTML(provider.name)}">Ficha</button>
+            <button class="ghost" type="button" data-quick-purchase="${escapeHTML(provider.name)}" data-return-provider="${escapeHTML(provider.name)}">Nueva compra</button>
           </div>
         `;
         list.appendChild(card);
@@ -1810,7 +1885,7 @@
           <div class="row">
             <div>
               <strong>Saldo a pagar</strong>
-              <div class="muted">${purchases.length} compras cargadas</div>
+              <div class="muted">${purchases.length} compras separadas · Total comprado ${money.format(supplierTotal(supplierName))}</div>
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
@@ -2161,6 +2236,11 @@
       event.preventDefault();
       const total = numberFrom($("#purchaseTotal").value);
       const paid = numberFrom($("#purchasePaid").value);
+      const supplier = supplierNameFromInput($("#purchaseSupplier").value);
+      if (!supplier) {
+        alert("Cargá el nombre del proveedor.");
+        return;
+      }
       if (total <= 0) {
         alert("El monto total tiene que ser mayor a cero.");
         return;
@@ -2177,7 +2257,7 @@
           alert("El nuevo total no puede ser menor que lo que ya está pagado. Primero eliminá o corregí pagos.");
           return;
         }
-        purchase.supplier = $("#purchaseSupplier").value.trim();
+        purchase.supplier = supplier;
         purchase.items = $("#purchaseItems").value.trim();
         purchase.total = total;
         purchase.date = $("#purchaseDate").value || todayISO;
@@ -2190,7 +2270,7 @@
       } else {
         state.purchases.push({
           id: id(),
-          supplier: $("#purchaseSupplier").value.trim(),
+          supplier,
           items: $("#purchaseItems").value.trim(),
           total,
           paid: 0,
