@@ -1017,6 +1017,8 @@
     let editingOrderId = null;
     let editingPurchaseId = null;
     let detailReturn = null;
+    let orderFormReturn = null;
+    let purchaseFormReturn = null;
 
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => document.querySelectorAll(selector);
@@ -1169,6 +1171,11 @@
         if (target.type === "provider") renderProviderDetail(target.id);
         return;
       }
+      $("#detailOverlay").hidden = true;
+    }
+
+    function hideDetail() {
+      detailReturn = null;
       $("#detailOverlay").hidden = true;
     }
 
@@ -1589,7 +1596,7 @@
           <div class="muted">${escapeHTML(client.address || "Sin dirección")}</div>
           ${client.note ? `<div class="muted">${escapeHTML(client.note)}</div>` : ""}
           <div class="actions">
-            <button class="ghost" type="button" data-quick-order="${client.id}">Nuevo pedido</button>
+            <button class="ghost" type="button" data-quick-order="${client.id}" data-return-client="${client.id}">Nuevo pedido</button>
             ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
           </div>
         </div>
@@ -1656,7 +1663,7 @@
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
-          <button class="ghost" type="button" data-open="purchases">Nueva compra</button>
+          <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
         </div>
         <div class="detail-block">
           <h2>Historial de compras</h2>
@@ -1755,18 +1762,42 @@
       $("#detailOverlay").hidden = false;
     }
 
-    function resetOrderForm() {
+    function resetOrderForm(options = {}) {
       editingOrderId = null;
       $("#orderForm").reset();
       $("#orderDate").value = todayISO;
       $("#orderSubmitButton").textContent = "Guardar pedido";
+      $("#cancelOrderEdit").textContent = "Cancelar edición";
       $("#cancelOrderEdit").hidden = true;
+      if (!options.keepReturn) orderFormReturn = null;
+    }
+
+    function returnToOrderOrigin(target) {
+      if (target?.type === "client") renderClientDetail(target.id);
+    }
+
+    function finishOrderForm() {
+      const target = orderFormReturn;
+      resetOrderForm();
+      returnToOrderOrigin(target);
+    }
+
+    function startNewOrder(clientId, returnTarget = null) {
+      resetOrderForm();
+      orderFormReturn = returnTarget;
+      $("#orderClient").value = clientId;
+      $("#cancelOrderEdit").textContent = returnTarget ? "Cancelar" : "Cancelar edición";
+      $("#cancelOrderEdit").hidden = !returnTarget;
+      hideDetail();
+      openView("orders");
+      $("#orderItems").focus();
     }
 
     function startOrderEdit(orderId) {
       const order = state.orders.find((item) => item.id === orderId);
       if (!order) return;
 
+      orderFormReturn = null;
       editingOrderId = order.id;
       $("#orderClient").value = order.clientId;
       $("#orderItems").value = order.items;
@@ -1775,23 +1806,48 @@
       $("#orderDate").value = order.date || todayISO;
       $("#deliveryDate").value = order.deliveryDate || "";
       $("#orderSubmitButton").textContent = "Actualizar pedido";
+      $("#cancelOrderEdit").textContent = "Cancelar edición";
       $("#cancelOrderEdit").hidden = false;
       openView("orders");
       $("#orderItems").focus();
     }
 
-    function resetPurchaseForm() {
+    function resetPurchaseForm(options = {}) {
       editingPurchaseId = null;
       $("#purchaseForm").reset();
       $("#purchaseDate").value = todayISO;
       $("#purchaseSubmitButton").textContent = "Guardar compra";
+      $("#cancelPurchaseEdit").textContent = "Cancelar edición";
       $("#cancelPurchaseEdit").hidden = true;
+      if (!options.keepReturn) purchaseFormReturn = null;
+    }
+
+    function returnToPurchaseOrigin(target) {
+      if (target?.type === "provider") renderProviderDetail(target.id);
+    }
+
+    function finishPurchaseForm() {
+      const target = purchaseFormReturn;
+      resetPurchaseForm();
+      returnToPurchaseOrigin(target);
+    }
+
+    function startNewPurchase(supplierName = "", returnTarget = null) {
+      resetPurchaseForm();
+      purchaseFormReturn = returnTarget;
+      $("#purchaseSupplier").value = supplierName;
+      $("#cancelPurchaseEdit").textContent = returnTarget ? "Cancelar" : "Cancelar edición";
+      $("#cancelPurchaseEdit").hidden = !returnTarget;
+      hideDetail();
+      openView("purchases");
+      $("#purchaseItems").focus();
     }
 
     function startPurchaseEdit(purchaseId) {
       const purchase = state.purchases.find((item) => item.id === purchaseId);
       if (!purchase) return;
 
+      purchaseFormReturn = null;
       editingPurchaseId = purchase.id;
       $("#purchaseSupplier").value = purchase.supplier;
       $("#purchaseItems").value = purchase.items;
@@ -1800,6 +1856,7 @@
       $("#purchaseDate").value = purchase.date || todayISO;
       $("#purchaseDueDate").value = purchase.dueDate || "";
       $("#purchaseSubmitButton").textContent = "Actualizar compra";
+      $("#cancelPurchaseEdit").textContent = "Cancelar edición";
       $("#cancelPurchaseEdit").hidden = false;
       openView("purchases");
       $("#purchaseItems").focus();
@@ -1882,9 +1939,11 @@
           status: "Pendiente"
         });
       }
+      const returnTarget = orderFormReturn;
       resetOrderForm();
       save();
       renderAll();
+      returnToOrderOrigin(returnTarget);
     });
 
     $("#purchaseForm").addEventListener("submit", (event) => {
@@ -1930,13 +1989,15 @@
           status: "Pendiente"
         });
       }
+      const returnTarget = purchaseFormReturn;
       resetPurchaseForm();
       save();
       renderAll();
+      returnToPurchaseOrigin(returnTarget);
     });
 
-    $("#cancelOrderEdit").addEventListener("click", resetOrderForm);
-    $("#cancelPurchaseEdit").addEventListener("click", resetPurchaseForm);
+    $("#cancelOrderEdit").addEventListener("click", finishOrderForm);
+    $("#cancelPurchaseEdit").addEventListener("click", finishPurchaseForm);
 
     document.body.addEventListener("click", (event) => {
       const button = event.target.closest("button");
@@ -1948,11 +2009,13 @@
       }
 
       if (button.dataset.quickOrder) {
-        resetOrderForm();
-        $("#orderClient").value = button.dataset.quickOrder;
-        closeDetail();
-        openView("orders");
-        $("#orderItems").focus();
+        const returnTarget = button.dataset.returnClient ? { type: "client", id: button.dataset.returnClient } : null;
+        startNewOrder(button.dataset.quickOrder, returnTarget);
+      }
+
+      if (button.dataset.quickPurchase) {
+        const returnTarget = button.dataset.returnProvider ? { type: "provider", id: button.dataset.returnProvider } : null;
+        startNewPurchase(button.dataset.quickPurchase, returnTarget);
       }
 
       if (button.dataset.clientDetail) {
