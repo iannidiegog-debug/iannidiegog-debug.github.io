@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#14532d">
   <title>Pedidos TIDIAL</title>
   <link rel="manifest" href="manifest.json">
@@ -34,6 +34,7 @@
         #f7f8f6;
       color: var(--ink);
       font-family: Arial, Helvetica, sans-serif;
+      touch-action: manipulation;
     }
 
     button,
@@ -256,6 +257,8 @@
       border-radius: 8px;
       padding: 14px;
       box-shadow: 0 8px 20px rgba(21, 46, 35, 0.08);
+      color: var(--ink);
+      text-align: left;
     }
 
     .dash-card strong {
@@ -738,8 +741,8 @@
         <button class="ghost" type="button" id="clearSearch">Limpiar</button>
       </div>
       <div class="top-actions">
-        <button type="button" data-open="orders">Nuevo pedido</button>
-        <button class="ghost" type="button" data-open="purchases">Nueva compra</button>
+        <button class="ghost" type="button" data-new-order>Nuevo pedido</button>
+        <button class="ghost" type="button" data-new-purchase>Nueva compra</button>
         <button class="ghost icon-button" type="button" data-calculator-open>Calc</button>
         <button class="ghost" type="button" id="logoutButton">Salir</button>
       </div>
@@ -754,39 +757,39 @@
               <p>Accesos rápidos para cargar ventas, compras, entregas y cuentas pendientes.</p>
             </div>
             <div class="quick-actions">
-              <button type="button" data-open="orders">Nuevo pedido <span>Cargar venta y pago</span></button>
-              <button type="button" data-open="purchases">Nueva compra <span>Proveedor, productos y pago</span></button>
-              <button type="button" data-open="clients">Nuevo cliente <span>Nombre, teléfono y dirección</span></button>
+              <button type="button" data-new-order>Nuevo pedido <span>Cargar venta y pago</span></button>
+              <button type="button" data-new-purchase>Nueva compra <span>Proveedor, productos y pago</span></button>
+              <button type="button" data-new-client>Nuevo cliente <span>Nombre, teléfono y dirección</span></button>
               <button type="button" data-open="debts">Ver deudas <span>Clientes con saldo pendiente</span></button>
               <button type="button" data-open="backup">Hacer copia <span>Guardar respaldo del teléfono</span></button>
             </div>
           </section>
 
           <section class="dashboard" aria-label="Tablero">
-            <div class="dash-card">
+            <button class="dash-card" type="button" data-dashboard-detail="receivable">
               <strong id="dashDebt">$0</strong>
               <span>Total a cobrar</span>
-            </div>
-            <div class="dash-card">
+            </button>
+            <button class="dash-card" type="button" data-dashboard-detail="payable">
               <strong id="dashPurchaseDebt">$0</strong>
               <span>Total a pagar</span>
-            </div>
-            <div class="dash-card">
+            </button>
+            <button class="dash-card" type="button" data-dashboard-detail="pendingOrders">
               <strong id="dashPending">0</strong>
               <span>Pedidos pendientes</span>
-            </div>
-            <div class="dash-card">
+            </button>
+            <button class="dash-card" type="button" data-dashboard-detail="pendingPurchases">
               <strong id="dashPurchasePending">0</strong>
               <span>Compras pendientes</span>
-            </div>
-            <div class="dash-card">
+            </button>
+            <button class="dash-card" type="button" data-dashboard-detail="soldToday">
               <strong id="dashToday">$0</strong>
               <span>Vendido hoy</span>
-            </div>
-            <div class="dash-card">
+            </button>
+            <button class="dash-card" type="button" data-dashboard-detail="boughtToday">
               <strong id="dashPurchasesToday">$0</strong>
               <span>Comprado hoy</span>
-            </div>
+            </button>
           </section>
 
           <section class="panel">
@@ -803,7 +806,6 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Clientes</h2>
-            <button class="ghost" type="button" id="sampleClients">Ejemplos</button>
           </div>
           <form class="form" id="clientForm">
             <label>Nombre
@@ -818,7 +820,8 @@
             <label>Nota
               <textarea id="clientNote" placeholder="Entrega por la mañana, cobra los viernes"></textarea>
             </label>
-            <button type="submit">Guardar cliente</button>
+            <button type="submit" id="clientSubmitButton">Guardar cliente</button>
+            <button class="ghost" type="button" id="cancelClientEdit" hidden>Cancelar edición</button>
           </form>
           <div class="list" id="clientList"></div>
         </div>
@@ -828,7 +831,6 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Pedidos</h2>
-            <button class="ghost" type="button" id="sampleOrders">Ejemplos</button>
           </div>
           <form class="form" id="orderForm">
             <label>Cliente
@@ -864,7 +866,6 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Compras</h2>
-            <button class="ghost" type="button" id="samplePurchases">Ejemplos</button>
           </div>
           <form class="form" id="purchaseForm">
             <label>Proveedor
@@ -950,18 +951,18 @@
         <button type="button" data-calc="8">8</button>
         <button type="button" data-calc="9">9</button>
         <button class="op" type="button" data-calc="*">×</button>
-        <button class="op" type="button" data-calc="-">−</button>
         <button type="button" data-calc="4">4</button>
         <button type="button" data-calc="5">5</button>
         <button type="button" data-calc="6">6</button>
-        <button class="op" type="button" data-calc="+">+</button>
+        <button class="op" type="button" data-calc="-">−</button>
         <button type="button" data-calc="1">1</button>
         <button type="button" data-calc="2">2</button>
         <button type="button" data-calc="3">3</button>
-        <button class="equal" type="button" data-calc="equals">=</button>
-        <button class="wide" type="button" data-calc="0">0</button>
+        <button class="op" type="button" data-calc="+">+</button>
+        <button type="button" data-calc="0">0</button>
         <button type="button" data-calc=".">,</button>
         <button type="button" data-calc="copy">Copiar</button>
+        <button class="equal" type="button" data-calc="equals">=</button>
       </div>
     </div>
   </section>
@@ -1014,9 +1015,11 @@
     let authConfig = loadAuth();
     let debtOnly = false;
     let calcExpression = "";
+    let editingClientId = null;
     let editingOrderId = null;
     let editingPurchaseId = null;
     let detailReturn = null;
+    let clientFormReturn = null;
     let orderFormReturn = null;
     let purchaseFormReturn = null;
 
@@ -1169,6 +1172,11 @@
         detailReturn = null;
         if (target.type === "client") renderClientDetail(target.id);
         if (target.type === "provider") renderProviderDetail(target.id);
+        if (target.type === "dashboard") renderDashboardDetail(target.id);
+        if (target.type === "view") {
+          $("#detailOverlay").hidden = true;
+          openView(target.id);
+        }
         return;
       }
       $("#detailOverlay").hidden = true;
@@ -1177,6 +1185,18 @@
     function hideDetail() {
       detailReturn = null;
       $("#detailOverlay").hidden = true;
+    }
+
+    function currentViewName() {
+      return $(".view.active")?.dataset.view || "home";
+    }
+
+    function targetFromButton(button) {
+      if (button.dataset.returnClient) return { type: "client", id: button.dataset.returnClient };
+      if (button.dataset.returnProvider) return { type: "provider", id: button.dataset.returnProvider };
+      if (button.dataset.returnDashboard) return { type: "dashboard", id: button.dataset.returnDashboard };
+      if (button.dataset.returnView) return { type: "view", id: button.dataset.returnView };
+      return null;
     }
 
     $("#detailClose").addEventListener("click", closeDetail);
@@ -1375,6 +1395,131 @@
       });
     }
 
+    function renderDashboardDetail(type) {
+      const config = {
+        receivable: {
+          title: "Total a cobrar",
+          empty: "No hay pedidos con saldo pendiente.",
+          rows: state.orders.filter((order) => orderDebt(order) > 0),
+          render: (order) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(clientName(order.clientId))}</strong>
+                  <div class="muted">${formatDate(order.date)} · ${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money bad">${money.format(orderDebt(order))}</span>
+              </div>
+              <div class="actions">
+                <button class="ghost" type="button" data-client-detail="${order.clientId}" data-return-dashboard="receivable">Ficha</button>
+                <button class="ghost" type="button" data-order-payments="${order.id}" data-return-dashboard="receivable">Pagos</button>
+              </div>
+            </div>
+          `
+        },
+        payable: {
+          title: "Total a pagar",
+          empty: "No hay compras con saldo pendiente.",
+          rows: state.purchases.filter((purchase) => purchaseDebt(purchase) > 0),
+          render: (purchase) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(purchase.supplier)}</strong>
+                  <div class="muted">${formatDate(purchase.date)} · ${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money bad">${money.format(purchaseDebt(purchase))}</span>
+              </div>
+              <div class="actions">
+                <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}" data-return-dashboard="payable">Proveedor</button>
+                <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-dashboard="payable">Pagos</button>
+              </div>
+            </div>
+          `
+        },
+        pendingOrders: {
+          title: "Pedidos pendientes",
+          empty: "No hay pedidos pendientes.",
+          rows: state.orders.filter((order) => order.status !== "Entregado"),
+          render: (order) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(clientName(order.clientId))}</strong>
+                  <div class="muted">${formatDate(order.date)} · ${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money ${orderDebt(order) > 0 ? "bad" : "good"}">${money.format(orderDebt(order))}</span>
+              </div>
+              <button class="ghost" type="button" data-client-detail="${order.clientId}" data-return-dashboard="pendingOrders">Ver cliente</button>
+            </div>
+          `
+        },
+        pendingPurchases: {
+          title: "Compras pendientes",
+          empty: "No hay compras pendientes.",
+          rows: state.purchases.filter((purchase) => purchaseDebt(purchase) > 0),
+          render: (purchase) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(purchase.supplier)}</strong>
+                  <div class="muted">${formatDate(purchase.date)} · ${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money bad">${money.format(purchaseDebt(purchase))}</span>
+              </div>
+              <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-dashboard="pendingPurchases">Ver compra</button>
+            </div>
+          `
+        },
+        soldToday: {
+          title: "Vendido hoy",
+          empty: "Todavía no hay ventas cargadas hoy.",
+          rows: state.orders.filter((order) => order.date === todayISO),
+          render: (order) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(clientName(order.clientId))}</strong>
+                  <div class="muted">${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money good">${money.format(order.total)}</span>
+              </div>
+              <button class="ghost" type="button" data-client-detail="${order.clientId}" data-return-dashboard="soldToday">Ver cliente</button>
+            </div>
+          `
+        },
+        boughtToday: {
+          title: "Comprado hoy",
+          empty: "Todavía no hay compras cargadas hoy.",
+          rows: state.purchases.filter((purchase) => purchase.date === todayISO),
+          render: (purchase) => `
+            <div class="mini-item">
+              <div class="row">
+                <div>
+                  <strong>${escapeHTML(purchase.supplier)}</strong>
+                  <div class="muted">${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                </div>
+                <span class="money good">${money.format(purchase.total)}</span>
+              </div>
+              <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}" data-return-dashboard="boughtToday">Ver proveedor</button>
+            </div>
+          `
+        }
+      }[type];
+
+      if (!config) return;
+      detailReturn = { type: "view", id: "home" };
+      $("#detailTitle").textContent = config.title;
+      $("#detailContent").innerHTML = `
+        <div class="detail-block">
+          <div class="mini-list">
+            ${config.rows.length ? config.rows.map(config.render).join("") : `<div class="empty">${config.empty}</div>`}
+          </div>
+        </div>
+      `;
+      $("#detailOverlay").hidden = false;
+    }
+
     function renderClientOptions() {
       const select = $("#orderClient");
       select.innerHTML = "";
@@ -1542,6 +1687,7 @@
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
+          <button class="ghost" type="button" data-client-detail="${client.id}" data-return-view="debts">Ver ficha</button>
         `;
         list.appendChild(card);
       });
@@ -1567,15 +1713,19 @@
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
           <div class="muted">${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+          <div class="actions">
+            <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-view="debts">Ver compra</button>
+            <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}" data-return-view="debts">Proveedor</button>
+          </div>
         `;
         purchaseList.appendChild(card);
       });
     }
 
-    function renderClientDetail(clientId) {
+    function renderClientDetail(clientId, returnTarget = null) {
       const client = state.clients.find((item) => item.id === clientId);
       if (!client) return;
-      detailReturn = null;
+      detailReturn = returnTarget;
 
       const orders = state.orders
         .filter((order) => order.clientId === client.id)
@@ -1597,6 +1747,7 @@
           ${client.note ? `<div class="muted">${escapeHTML(client.note)}</div>` : ""}
           <div class="actions">
             <button class="ghost" type="button" data-quick-order="${client.id}" data-return-client="${client.id}">Nuevo pedido</button>
+            <button class="ghost" type="button" data-edit-client="${client.id}" data-return-client="${client.id}">Editar ficha</button>
             ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
           </div>
         </div>
@@ -1613,11 +1764,11 @@
                 <div class="chips">
                   <span class="chip">Total ${money.format(order.total)}</span>
                   <span class="chip">Pagó ${money.format(orderPaid(order))}</span>
-                  <span class="chip">${escapeHTML(order.status)}</span>
+                  ${orderDebt(order) > 0 ? '<span class="chip">Saldo pendiente</span>' : ""}
                 </div>
                 <div class="actions">
                   <button class="ghost" type="button" data-order-payments="${order.id}" data-return-client="${client.id}">Ver pagos</button>
-                  <button class="ghost" type="button" data-edit-order="${order.id}">Editar pedido</button>
+                  <button class="ghost" type="button" data-edit-order="${order.id}" data-return-client="${client.id}">Editar pedido</button>
                 </div>
               </div>
             `).join("") : '<div class="empty">Sin pedidos cargados.</div>'}
@@ -1646,12 +1797,12 @@
       $("#detailOverlay").hidden = false;
     }
 
-    function renderProviderDetail(supplierName) {
+    function renderProviderDetail(supplierName, returnTarget = null) {
       const purchases = state.purchases
         .filter((purchase) => purchase.supplier === supplierName)
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
       const debt = purchases.reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
-      detailReturn = null;
+      detailReturn = returnTarget;
 
       $("#detailTitle").textContent = supplierName;
       $("#detailContent").innerHTML = `
@@ -1682,7 +1833,7 @@
                 </div>
                 <div class="actions">
                   <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-provider="${escapeHTML(supplierName)}">Ver pagos</button>
-                  <button class="ghost" type="button" data-edit-purchase="${purchase.id}">Editar compra</button>
+                  <button class="ghost" type="button" data-edit-purchase="${purchase.id}" data-return-provider="${escapeHTML(supplierName)}">Editar compra</button>
                 </div>
               </div>
             `).join("") : '<div class="empty">Sin compras cargadas.</div>'}
@@ -1762,6 +1913,56 @@
       $("#detailOverlay").hidden = false;
     }
 
+    function returnToTarget(target) {
+      if (target?.type === "client") renderClientDetail(target.id);
+      if (target?.type === "provider") renderProviderDetail(target.id);
+      if (target?.type === "dashboard") renderDashboardDetail(target.id);
+      if (target?.type === "view") openView(target.id);
+    }
+
+    function resetClientForm(options = {}) {
+      editingClientId = null;
+      $("#clientForm").reset();
+      $("#clientSubmitButton").textContent = "Guardar cliente";
+      $("#cancelClientEdit").textContent = "Cancelar edición";
+      $("#cancelClientEdit").hidden = true;
+      if (!options.keepReturn) clientFormReturn = null;
+    }
+
+    function finishClientForm() {
+      const target = clientFormReturn;
+      resetClientForm();
+      returnToTarget(target);
+    }
+
+    function startNewClient(returnTarget = null) {
+      resetClientForm();
+      clientFormReturn = returnTarget;
+      $("#cancelClientEdit").textContent = returnTarget ? "Cancelar" : "Cancelar edición";
+      $("#cancelClientEdit").hidden = !returnTarget;
+      hideDetail();
+      openView("clients");
+      $("#clientName").focus();
+    }
+
+    function startClientEdit(clientId, returnTarget = null) {
+      const client = state.clients.find((item) => item.id === clientId);
+      if (!client) return;
+
+      clientFormReturn = returnTarget;
+      editingClientId = client.id;
+      $("#clientName").value = client.name;
+      $("#clientPhone").value = client.phone || "";
+      $("#clientAddress").value = client.address || "";
+      $("#clientNote").value = client.note || "";
+      $("#clientSubmitButton").textContent = "Actualizar cliente";
+      $("#cancelClientEdit").textContent = "Cancelar edición";
+      $("#cancelClientEdit").hidden = false;
+      hideDetail();
+      openView("clients");
+      $("#clientName").focus();
+    }
+
     function resetOrderForm(options = {}) {
       editingOrderId = null;
       $("#orderForm").reset();
@@ -1773,7 +1974,7 @@
     }
 
     function returnToOrderOrigin(target) {
-      if (target?.type === "client") renderClientDetail(target.id);
+      returnToTarget(target);
     }
 
     function finishOrderForm() {
@@ -1785,7 +1986,7 @@
     function startNewOrder(clientId, returnTarget = null) {
       resetOrderForm();
       orderFormReturn = returnTarget;
-      $("#orderClient").value = clientId;
+      if (clientId) $("#orderClient").value = clientId;
       $("#cancelOrderEdit").textContent = returnTarget ? "Cancelar" : "Cancelar edición";
       $("#cancelOrderEdit").hidden = !returnTarget;
       hideDetail();
@@ -1793,11 +1994,11 @@
       $("#orderItems").focus();
     }
 
-    function startOrderEdit(orderId) {
+    function startOrderEdit(orderId, returnTarget = null) {
       const order = state.orders.find((item) => item.id === orderId);
       if (!order) return;
 
-      orderFormReturn = null;
+      orderFormReturn = returnTarget;
       editingOrderId = order.id;
       $("#orderClient").value = order.clientId;
       $("#orderItems").value = order.items;
@@ -1823,7 +2024,7 @@
     }
 
     function returnToPurchaseOrigin(target) {
-      if (target?.type === "provider") renderProviderDetail(target.id);
+      returnToTarget(target);
     }
 
     function finishPurchaseForm() {
@@ -1843,11 +2044,11 @@
       $("#purchaseItems").focus();
     }
 
-    function startPurchaseEdit(purchaseId) {
+    function startPurchaseEdit(purchaseId, returnTarget = null) {
       const purchase = state.purchases.find((item) => item.id === purchaseId);
       if (!purchase) return;
 
-      purchaseFormReturn = null;
+      purchaseFormReturn = returnTarget;
       editingPurchaseId = purchase.id;
       $("#purchaseSupplier").value = purchase.supplier;
       $("#purchaseItems").value = purchase.items;
@@ -1880,20 +2081,30 @@
     $("#clientForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const name = $("#clientName").value.trim();
-      if (state.clients.some((client) => client.name.toLowerCase() === name.toLowerCase())) {
+      if (state.clients.some((client) => client.id !== editingClientId && client.name.toLowerCase() === name.toLowerCase())) {
         alert("Ese cliente ya está cargado.");
         return;
       }
-      state.clients.push({
-        id: id(),
-        name,
-        phone: $("#clientPhone").value.trim(),
-        address: $("#clientAddress").value.trim(),
-        note: $("#clientNote").value.trim()
-      });
-      event.target.reset();
+      if (editingClientId) {
+        const client = state.clients.find((item) => item.id === editingClientId);
+        client.name = name;
+        client.phone = $("#clientPhone").value.trim();
+        client.address = $("#clientAddress").value.trim();
+        client.note = $("#clientNote").value.trim();
+      } else {
+        state.clients.push({
+          id: id(),
+          name,
+          phone: $("#clientPhone").value.trim(),
+          address: $("#clientAddress").value.trim(),
+          note: $("#clientNote").value.trim()
+        });
+      }
+      const returnTarget = clientFormReturn;
+      resetClientForm();
       save();
       renderAll();
+      returnToTarget(returnTarget);
     });
 
     $("#orderForm").addEventListener("submit", (event) => {
@@ -1996,6 +2207,7 @@
       returnToPurchaseOrigin(returnTarget);
     });
 
+    $("#cancelClientEdit").addEventListener("click", finishClientForm);
     $("#cancelOrderEdit").addEventListener("click", finishOrderForm);
     $("#cancelPurchaseEdit").addEventListener("click", finishPurchaseForm);
 
@@ -2008,42 +2220,62 @@
         openView(button.dataset.open);
       }
 
+      if (button.dataset.newClient !== undefined) {
+        startNewClient({ type: "view", id: currentViewName() });
+      }
+
+      if (button.dataset.newOrder !== undefined) {
+        startNewOrder("", { type: "view", id: currentViewName() });
+      }
+
+      if (button.dataset.newPurchase !== undefined) {
+        startNewPurchase("", { type: "view", id: currentViewName() });
+      }
+
+      if (button.dataset.dashboardDetail) {
+        renderDashboardDetail(button.dataset.dashboardDetail);
+      }
+
       if (button.dataset.quickOrder) {
-        const returnTarget = button.dataset.returnClient ? { type: "client", id: button.dataset.returnClient } : null;
+        const returnTarget = targetFromButton(button);
         startNewOrder(button.dataset.quickOrder, returnTarget);
       }
 
       if (button.dataset.quickPurchase) {
-        const returnTarget = button.dataset.returnProvider ? { type: "provider", id: button.dataset.returnProvider } : null;
+        const returnTarget = targetFromButton(button);
         startNewPurchase(button.dataset.quickPurchase, returnTarget);
       }
 
       if (button.dataset.clientDetail) {
-        renderClientDetail(button.dataset.clientDetail);
+        renderClientDetail(button.dataset.clientDetail, targetFromButton(button));
       }
 
       if (button.dataset.providerDetail) {
-        renderProviderDetail(button.dataset.providerDetail);
+        renderProviderDetail(button.dataset.providerDetail, targetFromButton(button));
       }
 
       if (button.dataset.orderPayments) {
-        const returnTarget = button.dataset.returnClient ? { type: "client", id: button.dataset.returnClient } : null;
+        const returnTarget = targetFromButton(button);
         renderPaymentDetail("order", button.dataset.orderPayments, returnTarget);
       }
 
       if (button.dataset.purchasePayments) {
-        const returnTarget = button.dataset.returnProvider ? { type: "provider", id: button.dataset.returnProvider } : null;
+        const returnTarget = targetFromButton(button);
         renderPaymentDetail("purchase", button.dataset.purchasePayments, returnTarget);
       }
 
+      if (button.dataset.editClient) {
+        startClientEdit(button.dataset.editClient, targetFromButton(button));
+      }
+
       if (button.dataset.editOrder) {
-        closeDetail();
-        startOrderEdit(button.dataset.editOrder);
+        hideDetail();
+        startOrderEdit(button.dataset.editOrder, targetFromButton(button));
       }
 
       if (button.dataset.editPurchase) {
-        closeDetail();
-        startPurchaseEdit(button.dataset.editPurchase);
+        hideDetail();
+        startPurchaseEdit(button.dataset.editPurchase, targetFromButton(button));
       }
 
       if (button.dataset.whatsapp) {
@@ -2182,54 +2414,6 @@
       debtOnly = !debtOnly;
       $("#onlyDebt").textContent = debtOnly ? "Ver todos" : "Con deuda";
       renderDebts();
-    });
-
-    $("#sampleClients").addEventListener("click", () => {
-      if (state.clients.length > 0 && !confirm("¿Agregar clientes de ejemplo?")) return;
-      state.clients.push(
-        { id: id(), name: "Almacén Don Luis", phone: "11 5555-1111", address: "Av. Mitre 123", note: "Entrega temprano" },
-        { id: id(), name: "Kiosco La Esquina", phone: "11 5555-2222", address: "San Martín 840", note: "Paga por transferencia" },
-        { id: id(), name: "Despensa Marta", phone: "11 5555-3333", address: "Belgrano 52", note: "Llamar antes" }
-      );
-      save();
-      renderAll();
-    });
-
-    $("#sampleOrders").addEventListener("click", () => {
-      if (state.clients.length === 0) {
-        alert("Primero cargá un cliente.");
-        return;
-      }
-      const client = state.clients[0];
-      state.orders.push({
-        id: id(),
-        clientId: client.id,
-        items: "3 cajas de arroz\n2 cajas de fideos\n1 pack de aceite",
-        total: 42000,
-        paid: 0,
-        payments: [{ id: id(), amount: 20000, date: todayISO, note: "Pago inicial" }],
-        date: todayISO,
-        deliveryDate: todayISO,
-        status: "Pendiente"
-      });
-      save();
-      renderAll();
-    });
-
-    $("#samplePurchases").addEventListener("click", () => {
-      state.purchases.push({
-        id: id(),
-        supplier: "Distribuidora Norte",
-        items: "10 cajas de fideos\n5 packs de aceite\n6 cajas de arroz",
-        total: 98000,
-        paid: 0,
-        payments: [{ id: id(), amount: 40000, date: todayISO, note: "Pago inicial" }],
-        date: todayISO,
-        dueDate: todayISO,
-        status: "Pendiente"
-      });
-      save();
-      renderAll();
     });
 
     $("#exportData").addEventListener("click", () => {
