@@ -1336,11 +1336,19 @@
     }
 
     function supplierDebt(supplierName) {
-      return supplierPurchases(supplierName).reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
+      return Math.max(0, supplierTotal(supplierName) - supplierPaid(supplierName));
     }
 
     function supplierTotal(supplierName) {
       return supplierPurchases(supplierName).reduce((sum, purchase) => sum + Number(purchase.total || 0), 0);
+    }
+
+    function supplierPaid(supplierName) {
+      return supplierPurchases(supplierName).reduce((sum, purchase) => sum + purchasePaid(purchase), 0);
+    }
+
+    function supplierCredit(supplierName) {
+      return Math.max(0, supplierPaid(supplierName) - supplierTotal(supplierName));
     }
 
     function supplierNameFromInput(value) {
@@ -1348,10 +1356,24 @@
       return supplierNames().find((supplierName) => supplierName.toLowerCase() === name.toLowerCase()) || name;
     }
 
+    function clientOrders(clientId) {
+      return state.orders.filter((order) => order.clientId === clientId);
+    }
+
+    function clientTotal(clientId) {
+      return clientOrders(clientId).reduce((sum, order) => sum + Number(order.total || 0), 0);
+    }
+
+    function clientPaid(clientId) {
+      return clientOrders(clientId).reduce((sum, order) => sum + orderPaid(order), 0);
+    }
+
     function clientDebt(clientId) {
-      return state.orders
-        .filter((order) => order.clientId === clientId)
-        .reduce((sum, order) => sum + orderDebt(order), 0);
+      return Math.max(0, clientTotal(clientId) - clientPaid(clientId));
+    }
+
+    function clientCredit(clientId) {
+      return Math.max(0, clientPaid(clientId) - clientTotal(clientId));
     }
 
     function itemPayments(item) {
@@ -1396,9 +1418,9 @@
         .filter((purchase) => purchase.date === todayISO)
         .reduce((sum, purchase) => sum + Number(purchase.total), 0);
       const pending = state.orders.filter((order) => order.status !== "Entregado").length;
-      const totalDebt = state.orders.reduce((sum, order) => sum + orderDebt(order), 0);
-      const purchaseTotalDebt = state.purchases.reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
-      const purchasePending = state.purchases.filter((purchase) => purchaseDebt(purchase) > 0).length;
+      const totalDebt = state.clients.reduce((sum, client) => sum + clientDebt(client.id), 0);
+      const purchaseTotalDebt = supplierNames().reduce((sum, supplierName) => sum + supplierDebt(supplierName), 0);
+      const purchasePending = supplierNames().filter((supplierName) => supplierDebt(supplierName) > 0).length;
       const recentOrders = state.orders
         .slice()
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`))
@@ -1436,41 +1458,35 @@
       const config = {
         receivable: {
           title: "Total a cobrar",
-          empty: "No hay pedidos con saldo pendiente.",
-          rows: state.orders.filter((order) => orderDebt(order) > 0),
-          render: (order) => `
+          empty: "No hay clientes con saldo pendiente.",
+          rows: state.clients.filter((client) => clientDebt(client.id) > 0),
+          render: (client) => `
             <div class="mini-item">
               <div class="row">
                 <div>
-                  <strong>${escapeHTML(clientName(order.clientId))}</strong>
-                  <div class="muted">${formatDate(order.date)} · ${escapeHTML(order.items).replace(/\n/g, " · ")}</div>
+                  <strong>${escapeHTML(client.name)}</strong>
+                  <div class="muted">${clientOrders(client.id).length} pedidos · Cobrado ${money.format(clientPaid(client.id))}</div>
                 </div>
-                <span class="money bad">${money.format(orderDebt(order))}</span>
+                <span class="money bad">${money.format(clientDebt(client.id))}</span>
               </div>
-              <div class="actions">
-                <button class="ghost" type="button" data-client-detail="${order.clientId}" data-return-dashboard="receivable">Ficha</button>
-                <button class="ghost" type="button" data-order-payments="${order.id}" data-return-dashboard="receivable">Pagos</button>
-              </div>
+              <button class="ghost" type="button" data-client-detail="${client.id}" data-return-dashboard="receivable">Ver cliente</button>
             </div>
           `
         },
         payable: {
           title: "Total a pagar",
-          empty: "No hay compras con saldo pendiente.",
-          rows: state.purchases.filter((purchase) => purchaseDebt(purchase) > 0),
-          render: (purchase) => `
+          empty: "No hay proveedores con saldo pendiente.",
+          rows: supplierNames().filter((supplierName) => supplierDebt(supplierName) > 0),
+          render: (supplierName) => `
             <div class="mini-item">
               <div class="row">
                 <div>
-                  <strong>${escapeHTML(purchase.supplier)}</strong>
-                  <div class="muted">${formatDate(purchase.date)} · ${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                  <strong>${escapeHTML(supplierName)}</strong>
+                  <div class="muted">${supplierPurchases(supplierName).length} compras · Pagado ${money.format(supplierPaid(supplierName))}</div>
                 </div>
-                <span class="money bad">${money.format(purchaseDebt(purchase))}</span>
+                <span class="money bad">${money.format(supplierDebt(supplierName))}</span>
               </div>
-              <div class="actions">
-                <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}" data-return-dashboard="payable">Proveedor</button>
-                <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-dashboard="payable">Pagos</button>
-              </div>
+              <button class="ghost" type="button" data-provider-detail="${escapeHTML(supplierName)}" data-return-dashboard="payable">Ver proveedor</button>
             </div>
           `
         },
@@ -1493,18 +1509,18 @@
         },
         pendingPurchases: {
           title: "Compras pendientes",
-          empty: "No hay compras pendientes.",
-          rows: state.purchases.filter((purchase) => purchaseDebt(purchase) > 0),
-          render: (purchase) => `
+          empty: "No hay proveedores pendientes.",
+          rows: supplierNames().filter((supplierName) => supplierDebt(supplierName) > 0),
+          render: (supplierName) => `
             <div class="mini-item">
               <div class="row">
                 <div>
-                  <strong>${escapeHTML(purchase.supplier)}</strong>
-                  <div class="muted">${formatDate(purchase.date)} · ${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
+                  <strong>${escapeHTML(supplierName)}</strong>
+                  <div class="muted">${supplierPurchases(supplierName).length} compras en historial</div>
                 </div>
-                <span class="money bad">${money.format(purchaseDebt(purchase))}</span>
+                <span class="money bad">${money.format(supplierDebt(supplierName))}</span>
               </div>
-              <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-dashboard="pendingPurchases">Ver compra</button>
+              <button class="ghost" type="button" data-provider-detail="${escapeHTML(supplierName)}" data-return-dashboard="pendingPurchases">Ver proveedor</button>
             </div>
           `
         },
@@ -1768,29 +1784,32 @@
       });
 
       const purchaseList = $("#purchaseDebtList");
-      const purchaseRows = state.purchases
-        .filter((purchase) => !debtOnly || purchaseDebt(purchase) > 0)
-        .filter((purchase) => matchesSearch(`${purchase.supplier} ${purchase.items} ${purchase.status}`))
-        .sort((a, b) => purchaseDebt(b) - purchaseDebt(a));
+      const purchaseRows = supplierNames()
+        .map((supplierName) => ({
+          supplierName,
+          debt: supplierDebt(supplierName),
+          purchases: supplierPurchases(supplierName)
+        }))
+        .filter((row) => !debtOnly || row.debt > 0)
+        .filter((row) => matchesSearch(`${row.supplierName} ${row.purchases.map((purchase) => purchase.items).join(" ")}`))
+        .sort((a, b) => b.debt - a.debt);
 
       purchaseList.innerHTML = purchaseRows.length ? "" : '<div class="empty">No hay compras pendientes para mostrar.</div>';
 
-      purchaseRows.forEach((purchase) => {
-        const debt = purchaseDebt(purchase);
+      purchaseRows.forEach(({ supplierName, debt, purchases }) => {
         const card = document.createElement("article");
         card.className = `card ${debt > 0 ? "debt" : "paid"}`;
         card.innerHTML = `
           <div class="row">
             <div>
-              <strong>${escapeHTML(purchase.supplier)}</strong>
-              <div class="muted">${formatDate(purchase.date)}${purchase.dueDate ? ` · Vence: ${formatDate(purchase.dueDate)}` : ""}</div>
+              <strong>${escapeHTML(supplierName)}</strong>
+              <div class="muted">${purchases.length} compras · Pagado ${money.format(supplierPaid(supplierName))}</div>
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
-          <div class="muted">${escapeHTML(purchase.items).replace(/\n/g, " · ")}</div>
           <div class="actions">
-            <button class="ghost" type="button" data-purchase-payments="${purchase.id}" data-return-view="debts">Ver compra</button>
-            <button class="ghost" type="button" data-provider-detail="${escapeHTML(purchase.supplier)}" data-return-view="debts">Proveedor</button>
+            <button class="ghost" type="button" data-provider-detail="${escapeHTML(supplierName)}" data-return-view="debts">Proveedor</button>
+            <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
           </div>
         `;
         purchaseList.appendChild(card);
@@ -1806,17 +1825,19 @@
         .filter((order) => order.clientId === client.id)
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
       const debt = clientDebt(client.id);
+      const credit = clientCredit(client.id);
       const whatsapp = whatsappURL(client.phone);
       $("#detailTitle").textContent = client.name;
       $("#detailContent").innerHTML = `
         <div class="detail-block">
           <div class="row">
             <div>
-              <strong>Saldo</strong>
-              <div class="muted">${orders.length} pedidos cargados</div>
+              <strong>Saldo a cobrar</strong>
+              <div class="muted">${orders.length} pedidos cargados · Total vendido ${money.format(clientTotal(client.id))} · Cobrado ${money.format(clientPaid(client.id))}</div>
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
+          ${credit > 0 ? `<div class="notice">Saldo a favor: ${money.format(credit)}. Se descuenta automáticamente del saldo del cliente.</div>` : ""}
           <div class="muted">${escapeHTML(client.phone || "Sin teléfono")}</div>
           <div class="muted">${escapeHTML(client.address || "Sin dirección")}</div>
           ${client.note ? `<div class="muted">${escapeHTML(client.note)}</div>` : ""}
@@ -1839,7 +1860,7 @@
                 <div class="chips">
                   <span class="chip">Total ${money.format(order.total)}</span>
                   <span class="chip">Pagó ${money.format(orderPaid(order))}</span>
-                  ${orderDebt(order) > 0 ? '<span class="chip">Saldo pendiente</span>' : ""}
+                  ${orderDebt(order) > 0 && debt > 0 ? '<span class="chip">Saldo pendiente</span>' : ""}
                 </div>
                 <div class="actions">
                   <button class="ghost" type="button" data-order-payments="${order.id}" data-return-client="${client.id}">Ver pagos</button>
@@ -1873,10 +1894,10 @@
     }
 
     function renderProviderDetail(supplierName, returnTarget = null) {
-      const purchases = state.purchases
-        .filter((purchase) => purchase.supplier === supplierName)
+      const purchases = supplierPurchases(supplierName)
         .sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
-      const debt = purchases.reduce((sum, purchase) => sum + purchaseDebt(purchase), 0);
+      const debt = supplierDebt(supplierName);
+      const credit = supplierCredit(supplierName);
       detailReturn = returnTarget;
 
       $("#detailTitle").textContent = supplierName;
@@ -1885,10 +1906,11 @@
           <div class="row">
             <div>
               <strong>Saldo a pagar</strong>
-              <div class="muted">${purchases.length} compras separadas · Total comprado ${money.format(supplierTotal(supplierName))}</div>
+              <div class="muted">${purchases.length} compras separadas · Total comprado ${money.format(supplierTotal(supplierName))} · Pagado ${money.format(supplierPaid(supplierName))}</div>
             </div>
             <div class="money ${debt > 0 ? "bad" : "good"}">${money.format(debt)}</div>
           </div>
+          ${credit > 0 ? `<div class="notice">Saldo a favor: ${money.format(credit)}. Se descuenta automáticamente del saldo del proveedor.</div>` : ""}
           <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
         </div>
         <div class="detail-block">
@@ -2191,18 +2213,8 @@
         alert("El monto total tiene que ser mayor a cero.");
         return;
       }
-      if (paid > total) {
-        alert("El pago no puede ser mayor que el total del pedido.");
-        return;
-      }
-
       if (editingOrderId) {
         const order = state.orders.find((item) => item.id === editingOrderId);
-        const paidAlready = orderPaid(order);
-        if (paidAlready > total) {
-          alert("El nuevo total no puede ser menor que lo que ya está pagado. Primero eliminá o corregí pagos.");
-          return;
-        }
         order.clientId = $("#orderClient").value;
         order.items = $("#orderItems").value.trim();
         order.total = total;
@@ -2245,18 +2257,8 @@
         alert("El monto total tiene que ser mayor a cero.");
         return;
       }
-      if (paid > total) {
-        alert("El pago no puede ser mayor que el total de la compra.");
-        return;
-      }
-
       if (editingPurchaseId) {
         const purchase = state.purchases.find((item) => item.id === editingPurchaseId);
-        const paidAlready = purchasePaid(purchase);
-        if (paidAlready > total) {
-          alert("El nuevo total no puede ser menor que lo que ya está pagado. Primero eliminá o corregí pagos.");
-          return;
-        }
         purchase.supplier = supplier;
         purchase.items = $("#purchaseItems").value.trim();
         purchase.total = total;
@@ -2398,10 +2400,6 @@
         const payment = numberFrom(input.value);
         const order = state.orders.find((item) => item.id === button.dataset.addPayment);
         if (payment <= 0) return;
-        if (payment > orderDebt(order)) {
-          alert("El pago no puede ser mayor que lo que queda debiendo.");
-          return;
-        }
         order.payments = Array.isArray(order.payments) ? order.payments : [];
         order.payments.push({ id: id(), amount: payment, date: todayISO, note: "Pago" });
         save();
@@ -2452,10 +2450,6 @@
         const payment = numberFrom(input.value);
         const purchase = state.purchases.find((item) => item.id === button.dataset.addPurchasePayment);
         if (payment <= 0) return;
-        if (payment > purchaseDebt(purchase)) {
-          alert("El pago no puede ser mayor que lo que queda debiendo.");
-          return;
-        }
         purchase.payments = Array.isArray(purchase.payments) ? purchase.payments : [];
         purchase.payments.push({ id: id(), amount: payment, date: todayISO, note: "Pago" });
         purchase.status = purchaseDebt(purchase) === 0 ? "Pagada" : "Pendiente";
