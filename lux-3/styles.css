@@ -118,6 +118,11 @@ a {
   color: #fff;
 }
 
+.mode-switch #barber-access-button.active {
+  background: #111111;
+  color: #fff;
+}
+
 main {
   padding: clamp(16px, 4vw, 42px);
 }
@@ -263,6 +268,12 @@ p {
   background: rgba(201, 157, 69, 0.1);
   color: #4e3d16;
   font-weight: 750;
+}
+
+.form-error {
+  margin: 0 0 12px;
+  color: var(--red);
+  font-weight: 800;
 }
 
 .session-head,

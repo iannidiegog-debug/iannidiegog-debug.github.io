@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#111111" />
     <title>Lux 3.0</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=6" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
   </head>
   <body>
     <div class="app-shell">
@@ -21,7 +21,7 @@
 
         <nav class="mode-switch" aria-label="Secciones">
           <button class="active" type="button" data-view="cliente">Cliente</button>
-          <button type="button" data-view="panel">Panel Lux</button>
+          <button type="button" id="barber-access-button">Barberos</button>
         </nav>
       </header>
 
@@ -173,10 +173,11 @@
               <div>
                 <p class="eyebrow">Panel privado</p>
                 <h1 id="panel-title">Agenda Lux</h1>
-                <p>Vista semanal y agenda del día para pantalla de barbería.</p>
+                <p id="barber-session-label">Vista semanal y agenda del día para pantalla de barbería.</p>
               </div>
               <div class="panel-actions">
                 <button class="secondary compact" type="button" id="open-admin">Administración</button>
+                <button class="secondary compact" type="button" id="logout-barber">Salir</button>
                 <button class="primary compact" type="button" id="new-demo-booking">Agregar turno demo</button>
               </div>
             </section>
@@ -239,6 +240,33 @@
           <a class="primary" id="success-whatsapp" href="#" target="_blank" rel="noreferrer">Abrir WhatsApp</a>
           <button class="secondary" type="button" id="close-dialog">Cerrar</button>
         </div>
+      </div>
+    </dialog>
+
+    <dialog id="barber-login-dialog">
+      <div class="dialog-content">
+        <p class="eyebrow">Acceso barberos</p>
+        <h2>Entrar al Panel Lux</h2>
+        <p>Este sector es solo para Franco, Vito o administración.</p>
+        <form id="barber-login-form" class="stack-form">
+          <label class="field">
+            <span>Barbero</span>
+            <select id="barber-login-select" name="barber">
+              <option value="franco">Franco</option>
+              <option value="vito">Vito</option>
+              <option value="admin">Administración</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Contraseña</span>
+            <input id="barber-password" name="password" type="password" autocomplete="current-password" placeholder="Clave del panel" required />
+          </label>
+          <p class="form-error" id="barber-login-error" hidden>Contraseña incorrecta.</p>
+          <div class="dialog-actions">
+            <button class="primary" type="submit">Entrar</button>
+            <button class="secondary" type="button" id="close-barber-login">Cancelar</button>
+          </div>
+        </form>
       </div>
     </dialog>
 
@@ -310,6 +338,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=6"></script>
+    <script src="./app.js?v=7"></script>
   </body>
 </html>

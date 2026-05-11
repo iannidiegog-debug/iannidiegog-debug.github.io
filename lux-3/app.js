@@ -14,6 +14,8 @@ const slots = ["10:00", "10:45", "11:30", "12:15", "14:15", "15:00", "15:45", "1
 const bookingStoreKey = "lux-3-bookings";
 const clientStoreKey = "lux-3-clients";
 const activeClientKey = "lux-3-active-client";
+const barberSessionKey = "lux-3-barber-session";
+const panelPassword = "lux30";
 
 const defaultClients = [
   { phone: "5491140228811", firstName: "Fede", lastName: "Martínez", notes: "Cliente frecuente de combo.", createdAt: todayISO(), source: "barber" },
@@ -39,6 +41,7 @@ const state = {
   panelSelectedPhone: "",
   pendingPhone: "",
   weeklyBarberFilter: "all",
+  barberSession: JSON.parse(sessionStorage.getItem(barberSessionKey) || "null"),
   deferredInstallPrompt: null,
 };
 
@@ -52,6 +55,13 @@ const els = {
   viewButtons: document.querySelectorAll("[data-view]"),
   views: document.querySelectorAll(".view"),
   modeButtons: document.querySelectorAll(".mode-switch button"),
+  barberAccessButton: document.querySelector("#barber-access-button"),
+  barberLoginDialog: document.querySelector("#barber-login-dialog"),
+  barberLoginForm: document.querySelector("#barber-login-form"),
+  barberLoginSelect: document.querySelector("#barber-login-select"),
+  barberPassword: document.querySelector("#barber-password"),
+  barberLoginError: document.querySelector("#barber-login-error"),
+  closeBarberLogin: document.querySelector("#close-barber-login"),
   loginCard: document.querySelector("#login-card"),
   loginForm: document.querySelector("#login-form"),
   loginPhone: document.querySelector("#login-phone"),
@@ -91,6 +101,8 @@ const els = {
   adminDialog: document.querySelector("#admin-dialog"),
   openAdmin: document.querySelector("#open-admin"),
   closeAdmin: document.querySelector("#close-admin"),
+  logoutBarber: document.querySelector("#logout-barber"),
+  barberSessionLabel: document.querySelector("#barber-session-label"),
   clientList: document.querySelector("#client-list"),
   barberClientForm: document.querySelector("#barber-client-form"),
   panelClientFile: document.querySelector("#panel-client-file"),
@@ -120,6 +132,7 @@ function init() {
   renderSlots();
   renderStep();
   renderAuth();
+  renderBarberSession();
   renderPanel();
   updatePromoLink();
   bindEvents();
@@ -129,6 +142,43 @@ function init() {
 function bindEvents() {
   els.viewButtons.forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
+  });
+
+  els.barberAccessButton.addEventListener("click", () => {
+    if (isBarberAuthenticated()) {
+      setView("panel");
+      return;
+    }
+    openBarberLogin();
+  });
+
+  els.barberLoginForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(els.barberLoginForm);
+    const password = String(form.get("password")).trim();
+    const barber = String(form.get("barber"));
+
+    if (password !== panelPassword) {
+      els.barberLoginError.hidden = false;
+      return;
+    }
+
+    state.barberSession = {
+      role: barber,
+      label: barber === "admin" ? "Administración" : getBarber(barber).name,
+      startedAt: new Date().toISOString(),
+    };
+    sessionStorage.setItem(barberSessionKey, JSON.stringify(state.barberSession));
+    els.barberLoginDialog.close();
+    els.barberLoginForm.reset();
+    els.barberLoginError.hidden = true;
+    renderBarberSession();
+    setView("panel");
+  });
+
+  els.closeBarberLogin.addEventListener("click", () => {
+    els.barberLoginDialog.close();
+    els.barberLoginError.hidden = true;
   });
 
   els.loginForm.addEventListener("submit", (event) => {
@@ -232,6 +282,13 @@ function bindEvents() {
     els.adminDialog.showModal();
   });
   els.closeAdmin.addEventListener("click", () => els.adminDialog.close());
+  els.logoutBarber.addEventListener("click", () => {
+    state.barberSession = null;
+    sessionStorage.removeItem(barberSessionKey);
+    if (els.adminDialog.open) els.adminDialog.close();
+    renderBarberSession();
+    setView("cliente");
+  });
   els.weeklyBarberFilter.addEventListener("change", () => {
     state.weeklyBarberFilter = els.weeklyBarberFilter.value;
     renderWeeklyCalendar();
@@ -278,6 +335,25 @@ function renderAuth() {
   els.selectedClientPhone.textContent = formatPhone(client.phone);
   els.selectedBarberName.textContent = `Barbero: ${getBarber(state.barberId).name}`;
   renderClientDashboard(client);
+}
+
+function openBarberLogin() {
+  els.barberLoginError.hidden = true;
+  els.barberPassword.value = "";
+  els.barberLoginDialog.showModal();
+}
+
+function isBarberAuthenticated() {
+  return Boolean(state.barberSession);
+}
+
+function renderBarberSession() {
+  const authenticated = isBarberAuthenticated();
+  els.barberAccessButton.textContent = authenticated ? "Panel Lux" : "Barberos";
+  els.barberAccessButton.classList.toggle("active", state.view === "panel" && authenticated);
+  els.barberSessionLabel.textContent = authenticated
+    ? `Sesión de barbero: ${state.barberSession.label}. Vista semanal y agenda del día.`
+    : "Vista semanal y agenda del día para pantalla de barbería.";
 }
 
 function renderClientDashboard(client) {
@@ -628,9 +704,15 @@ function canAdvance() {
 }
 
 function setView(view) {
+  if (view === "panel" && !isBarberAuthenticated()) {
+    openBarberLogin();
+    return;
+  }
+
   state.view = view;
   els.views.forEach((section) => section.classList.toggle("active", section.id === `${view}-view`));
   els.modeButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+  els.barberAccessButton.classList.toggle("active", view === "panel" && isBarberAuthenticated());
   if (view === "panel") renderPanel();
 }
 
