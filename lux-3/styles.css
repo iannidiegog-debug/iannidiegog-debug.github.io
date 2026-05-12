@@ -270,6 +270,10 @@ p {
   font-weight: 750;
 }
 
+.compact-note {
+  margin-bottom: 0;
+}
+
 .form-error {
   margin: 0 0 12px;
   color: var(--red);
@@ -666,8 +670,20 @@ textarea:focus {
 }
 
 .ledger-workspace .section-head p,
+.cloud-workspace .section-head p,
 .weekly-workspace .section-head p {
   margin-bottom: 0;
+}
+
+.cloud-workspace {
+  margin-bottom: 12px;
+}
+
+.cloud-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) auto auto;
+  gap: 10px;
+  align-items: end;
 }
 
 .barber-ledger {
@@ -985,6 +1001,10 @@ dialog::backdrop {
   }
 
   .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cloud-form {
     grid-template-columns: 1fr;
   }
 }

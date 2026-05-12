@@ -16,6 +16,7 @@ const clientStoreKey = "lux-3-clients";
 const activeClientKey = "lux-3-active-client";
 const barberSessionKey = "lux-3-barber-session";
 const barberPasswordStoreKey = "lux-3-barber-passwords";
+const cloudConfigStoreKey = "lux-3-supabase-config";
 
 const defaultClients = [
   { phone: "5491140228811", firstName: "Fede", lastName: "Martínez", notes: "Cliente frecuente de combo.", createdAt: todayISO(), source: "barber" },
@@ -43,6 +44,15 @@ const state = {
   weeklyBarberFilter: "all",
   barberSession: JSON.parse(sessionStorage.getItem(barberSessionKey) || "null"),
   deferredInstallPrompt: null,
+  clients: readStoredList(clientStoreKey),
+  bookings: readStoredList(bookingStoreKey),
+  cloud: {
+    client: null,
+    enabled: false,
+    loading: false,
+    channel: null,
+    refreshTimer: null,
+  },
 };
 
 const formatter = new Intl.NumberFormat("es-AR", {
@@ -123,11 +133,17 @@ const els = {
   promoText: document.querySelector("#promo-text"),
   promoWhatsapp: document.querySelector("#promo-whatsapp"),
   installButton: document.querySelector("#install-button"),
+  cloudStatus: document.querySelector("#cloud-status"),
+  cloudConfigForm: document.querySelector("#cloud-config-form"),
+  cloudUrl: document.querySelector("#cloud-url"),
+  cloudKey: document.querySelector("#cloud-key"),
+  cloudDisconnect: document.querySelector("#cloud-disconnect"),
+  cloudHelp: document.querySelector("#cloud-help"),
 };
 
 init();
 
-function init() {
+async function init() {
   seedData();
   migrateBookings();
   els.bookingDate.min = todayISO();
@@ -142,6 +158,8 @@ function init() {
   updatePromoLink();
   bindEvents();
   registerServiceWorker();
+  hydrateCloudForm();
+  await connectCloud();
 }
 
 function bindEvents() {
@@ -298,6 +316,28 @@ function bindEvents() {
   els.generatePromo.addEventListener("click", generatePromo);
   els.promoText.addEventListener("input", updatePromoLink);
   els.installButton.addEventListener("click", installApp);
+  els.cloudConfigForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(els.cloudConfigForm);
+    const config = {
+      url: String(form.get("url")).trim(),
+      anonKey: String(form.get("anonKey")).trim(),
+    };
+
+    if (!config.url || !config.anonKey) {
+      setCloudStatus("Faltan datos", "Pegá la URL y la clave pública anon de Supabase.");
+      return;
+    }
+
+    localStorage.setItem(cloudConfigStoreKey, JSON.stringify(config));
+    await connectCloud({ replace: true });
+  });
+  els.cloudDisconnect.addEventListener("click", async () => {
+    localStorage.removeItem(cloudConfigStoreKey);
+    await disconnectCloud();
+    hydrateCloudForm();
+    renderAll();
+  });
   els.openAdmin.addEventListener("click", () => {
     renderAdmin();
     els.adminDialog.showModal();
@@ -913,7 +953,7 @@ function getClient(phone) {
 }
 
 function getClients() {
-  return JSON.parse(localStorage.getItem(clientStoreKey) || "[]");
+  return state.clients;
 }
 
 function saveClients(clients) {
@@ -921,7 +961,9 @@ function saveClients(clients) {
   clients.forEach((client) => {
     if (client.phone) unique.set(client.phone, client);
   });
-  localStorage.setItem(clientStoreKey, JSON.stringify(Array.from(unique.values())));
+  state.clients = Array.from(unique.values());
+  localStorage.setItem(clientStoreKey, JSON.stringify(state.clients));
+  pushClientsToCloud(state.clients);
 }
 
 function upsertClient(data) {
@@ -962,11 +1004,13 @@ function migrateBookings() {
 }
 
 function getBookings() {
-  return JSON.parse(localStorage.getItem(bookingStoreKey) || "[]");
+  return state.bookings;
 }
 
 function saveBookings(bookings) {
+  state.bookings = bookings;
   localStorage.setItem(bookingStoreKey, JSON.stringify(bookings));
+  pushBookingsToCloud(bookings);
 }
 
 function getService(id) {
@@ -1093,6 +1137,201 @@ function installApp() {
   state.deferredInstallPrompt.prompt();
   state.deferredInstallPrompt = null;
   els.installButton.hidden = true;
+}
+
+function renderAll() {
+  renderBarbers();
+  renderServices();
+  renderSlots();
+  renderAuth();
+  renderBarberSession();
+  renderPanel();
+  if (els.adminDialog.open) renderAdmin();
+}
+
+function hydrateCloudForm() {
+  const config = getCloudConfig();
+  els.cloudUrl.value = config.url || "";
+  els.cloudKey.value = config.anonKey || "";
+}
+
+async function connectCloud(options = {}) {
+  const config = getCloudConfig();
+
+  if (options.replace) await disconnectCloud();
+  if (!config.url || !config.anonKey) {
+    setCloudStatus("Modo local", "Sin Supabase conectado. Los datos quedan solo en este dispositivo.");
+    return;
+  }
+
+  if (!window.supabase?.createClient) {
+    setCloudStatus("Sin conexión", "No pudimos cargar Supabase. Revisá internet y volvé a intentar.");
+    return;
+  }
+
+  try {
+    state.cloud.loading = true;
+    setCloudStatus("Conectando", "Estamos trayendo la agenda compartida.");
+    state.cloud.client = window.supabase.createClient(config.url, config.anonKey);
+    state.cloud.enabled = true;
+    await pullCloudData();
+    startCloudRefresh();
+    setCloudStatus("Nube activa", "Los turnos y clientes se sincronizan entre dispositivos.");
+  } catch (error) {
+    state.cloud.enabled = false;
+    state.cloud.client = null;
+    setCloudStatus("Error nube", "No pudimos conectar. Revisá que las tablas y claves de Supabase estén bien cargadas.");
+    console.error(error);
+  } finally {
+    state.cloud.loading = false;
+  }
+}
+
+async function disconnectCloud() {
+  if (state.cloud.refreshTimer) window.clearInterval(state.cloud.refreshTimer);
+  if (state.cloud.channel && state.cloud.client) await state.cloud.client.removeChannel(state.cloud.channel);
+  state.cloud = {
+    client: null,
+    enabled: false,
+    loading: false,
+    channel: null,
+    refreshTimer: null,
+  };
+  setCloudStatus("Modo local", "Los datos quedan solo en este dispositivo.");
+}
+
+function startCloudRefresh() {
+  if (!state.cloud.client) return;
+  if (state.cloud.refreshTimer) window.clearInterval(state.cloud.refreshTimer);
+  state.cloud.refreshTimer = window.setInterval(() => {
+    if (!state.cloud.loading) pullCloudData({ silent: true });
+  }, 15000);
+
+  state.cloud.channel = state.cloud.client
+    .channel("lux-3-sync")
+    .on("postgres_changes", { event: "*", schema: "public", table: "lux_clients" }, () => pullCloudData({ silent: true }))
+    .on("postgres_changes", { event: "*", schema: "public", table: "lux_bookings" }, () => pullCloudData({ silent: true }))
+    .subscribe();
+}
+
+async function pullCloudData(options = {}) {
+  if (!state.cloud.client) return;
+  if (!options.silent) setCloudStatus("Sincronizando", "Actualizando clientes y turnos.");
+
+  const [clientsResult, bookingsResult] = await Promise.all([
+    state.cloud.client.from("lux_clients").select("*").order("created_at", { ascending: true }),
+    state.cloud.client.from("lux_bookings").select("*").order("date", { ascending: true }).order("time", { ascending: true }),
+  ]);
+
+  if (clientsResult.error) throw clientsResult.error;
+  if (bookingsResult.error) throw bookingsResult.error;
+
+  state.clients = (clientsResult.data || []).map(fromCloudClient);
+  state.bookings = (bookingsResult.data || []).map(fromCloudBooking);
+  localStorage.setItem(clientStoreKey, JSON.stringify(state.clients));
+  localStorage.setItem(bookingStoreKey, JSON.stringify(state.bookings));
+  renderAll();
+  if (!options.silent) setCloudStatus("Nube activa", "Los turnos y clientes se sincronizan entre dispositivos.");
+}
+
+async function pushClientsToCloud(clients) {
+  if (!state.cloud.enabled || !state.cloud.client) return;
+  const payload = clients.map(toCloudClient);
+  if (!payload.length) return;
+  const { error } = await state.cloud.client.from("lux_clients").upsert(payload, { onConflict: "phone" });
+  if (error) setCloudStatus("Error nube", "No pudimos guardar un cliente en Supabase.");
+}
+
+async function pushBookingsToCloud(bookings) {
+  if (!state.cloud.enabled || !state.cloud.client) return;
+  await pushClientsToCloud(state.clients);
+  const payload = bookings.map(toCloudBooking);
+  if (!payload.length) return;
+  const { error } = await state.cloud.client.from("lux_bookings").upsert(payload, { onConflict: "id" });
+  if (error) setCloudStatus("Error nube", "No pudimos guardar un turno en Supabase.");
+}
+
+function getCloudConfig() {
+  const fileConfig = window.LUX_SUPABASE_CONFIG || {};
+  if (fileConfig.url && fileConfig.anonKey) return fileConfig;
+
+  try {
+    return JSON.parse(localStorage.getItem(cloudConfigStoreKey) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function setCloudStatus(label, help) {
+  if (!els.cloudStatus || !els.cloudHelp) return;
+  els.cloudStatus.textContent = label;
+  els.cloudHelp.textContent = help;
+}
+
+function toCloudClient(client) {
+  return {
+    phone: client.phone,
+    first_name: client.firstName,
+    last_name: client.lastName,
+    notes: client.notes || "",
+    source: client.source || "client",
+    created_at: client.createdAt || todayISO(),
+  };
+}
+
+function fromCloudClient(client) {
+  return {
+    phone: client.phone,
+    firstName: client.first_name || "",
+    lastName: client.last_name || "",
+    notes: client.notes || "",
+    source: client.source || "client",
+    createdAt: client.created_at || todayISO(),
+  };
+}
+
+function toCloudBooking(booking) {
+  return {
+    id: booking.id,
+    barber_id: booking.barberId,
+    service_id: booking.serviceId,
+    date: booking.date,
+    time: booking.time,
+    name: booking.name,
+    phone: booking.phone,
+    note: booking.note || "",
+    paid_amount: booking.paidAmount || getService(booking.serviceId).price,
+    status: booking.status || "confirmed",
+    created_at: booking.createdAt || new Date().toISOString(),
+    cancelled_at: booking.cancelledAt || null,
+    completed_at: booking.completedAt || null,
+  };
+}
+
+function fromCloudBooking(booking) {
+  return {
+    id: booking.id,
+    barberId: booking.barber_id,
+    serviceId: booking.service_id,
+    date: booking.date,
+    time: booking.time,
+    name: booking.name,
+    phone: booking.phone,
+    note: booking.note || "",
+    paidAmount: booking.paid_amount || getService(booking.service_id).price,
+    status: booking.status || "confirmed",
+    createdAt: booking.created_at || new Date().toISOString(),
+    cancelledAt: booking.cancelled_at || "",
+    completedAt: booking.completed_at || "",
+  };
+}
+
+function readStoredList(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "[]");
+  } catch {
+    return [];
+  }
 }
 
 function registerServiceWorker() {

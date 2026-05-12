@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#111111" />
     <title>Lux 3.0</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=9" />
+    <link rel="stylesheet" href="./styles.css?v=10" />
   </head>
   <body>
     <div class="app-shell">
@@ -292,6 +292,29 @@
           <div class="barber-ledger" id="barber-ledger"></div>
         </section>
 
+        <section class="workspace cloud-workspace">
+          <div class="section-head">
+            <div>
+              <h2>Nube compartida</h2>
+              <p>Conectá Supabase para que clientes y barberos vean los mismos turnos.</p>
+            </div>
+            <span class="status-pill" id="cloud-status">Modo local</span>
+          </div>
+          <form id="cloud-config-form" class="cloud-form">
+            <label class="field">
+              <span>URL de Supabase</span>
+              <input id="cloud-url" name="url" type="url" placeholder="https://tu-proyecto.supabase.co" />
+            </label>
+            <label class="field">
+              <span>Clave pública anon</span>
+              <input id="cloud-key" name="anonKey" placeholder="eyJhbGciOi..." />
+            </label>
+            <button class="primary compact" type="submit">Guardar nube</button>
+            <button class="secondary compact" type="button" id="cloud-disconnect">Usar local</button>
+          </form>
+          <p class="inline-note compact-note" id="cloud-help">Cuando esté conectado, los cambios se actualizan en la tablet y en los teléfonos.</p>
+        </section>
+
         <div class="admin-grid">
           <section class="workspace">
             <div class="section-head">
@@ -342,6 +365,8 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=9"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js?v=10"></script>
+    <script src="./app.js?v=10"></script>
   </body>
 </html>
