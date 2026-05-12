@@ -1,5 +1,5 @@
-const cacheName = "lux-3-cache-v7";
-const assets = ["./", "./index.html", "./styles.css?v=7", "./app.js?v=7", "./manifest.webmanifest", "./icon.svg"];
+const cacheName = "lux-3-cache-v8";
+const assets = ["./", "./index.html", "./styles.css?v=8", "./app.js?v=8", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(assets)));

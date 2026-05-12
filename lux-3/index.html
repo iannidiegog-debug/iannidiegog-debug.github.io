@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#111111" />
     <title>Lux 3.0</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=7" />
+    <link rel="stylesheet" href="./styles.css?v=8" />
   </head>
   <body>
     <div class="app-shell">
@@ -84,7 +84,7 @@
                     <h2 id="client-name">Cliente Lux</h2>
                     <p id="client-phone-line"></p>
                   </div>
-                  <button class="secondary compact" type="button" id="logout-client">Cambiar</button>
+                  <button class="secondary compact" type="button" id="logout-client">Salir</button>
                 </div>
 
                 <section class="profile-strip" aria-label="Resumen de cliente">
@@ -246,8 +246,8 @@
     <dialog id="barber-login-dialog">
       <div class="dialog-content">
         <p class="eyebrow">Acceso barberos</p>
-        <h2>Entrar al Panel Lux</h2>
-        <p>Este sector es solo para Franco, Vito o administración.</p>
+        <h2 id="barber-login-title">Entrar al Panel Lux</h2>
+        <p id="barber-login-help">Este sector es solo para Franco, Vito o administración.</p>
         <form id="barber-login-form" class="stack-form">
           <label class="field">
             <span>Barbero</span>
@@ -258,10 +258,14 @@
             </select>
           </label>
           <label class="field">
-            <span>Contraseña</span>
+            <span id="barber-password-label">Contraseña</span>
             <input id="barber-password" name="password" type="password" autocomplete="current-password" placeholder="Clave del panel" required />
           </label>
-          <p class="form-error" id="barber-login-error" hidden>Contraseña incorrecta.</p>
+          <label class="field" id="barber-password-confirm-field" hidden>
+            <span>Repetir contraseña</span>
+            <input id="barber-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" placeholder="Repetí la clave" />
+          </label>
+          <p class="form-error" id="barber-login-error" hidden>No pudimos entrar.</p>
           <div class="dialog-actions">
             <button class="primary" type="submit">Entrar</button>
             <button class="secondary" type="button" id="close-barber-login">Cancelar</button>
@@ -338,6 +342,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=7"></script>
+    <script src="./app.js?v=8"></script>
   </body>
 </html>

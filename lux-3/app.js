@@ -15,7 +15,7 @@ const bookingStoreKey = "lux-3-bookings";
 const clientStoreKey = "lux-3-clients";
 const activeClientKey = "lux-3-active-client";
 const barberSessionKey = "lux-3-barber-session";
-const panelPassword = "lux30";
+const barberPasswordStoreKey = "lux-3-barber-passwords";
 
 const defaultClients = [
   { phone: "5491140228811", firstName: "Fede", lastName: "Martínez", notes: "Cliente frecuente de combo.", createdAt: todayISO(), source: "barber" },
@@ -59,7 +59,12 @@ const els = {
   barberLoginDialog: document.querySelector("#barber-login-dialog"),
   barberLoginForm: document.querySelector("#barber-login-form"),
   barberLoginSelect: document.querySelector("#barber-login-select"),
+  barberLoginTitle: document.querySelector("#barber-login-title"),
+  barberLoginHelp: document.querySelector("#barber-login-help"),
+  barberPasswordLabel: document.querySelector("#barber-password-label"),
   barberPassword: document.querySelector("#barber-password"),
+  barberPasswordConfirmField: document.querySelector("#barber-password-confirm-field"),
+  barberPasswordConfirm: document.querySelector("#barber-password-confirm"),
   barberLoginError: document.querySelector("#barber-login-error"),
   closeBarberLogin: document.querySelector("#close-barber-login"),
   loginCard: document.querySelector("#login-card"),
@@ -152,14 +157,30 @@ function bindEvents() {
     openBarberLogin();
   });
 
+  els.barberLoginSelect.addEventListener("change", renderBarberLoginMode);
+
   els.barberLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(els.barberLoginForm);
     const password = String(form.get("password")).trim();
+    const passwordConfirm = String(form.get("passwordConfirm")).trim();
     const barber = String(form.get("barber"));
+    const savedPassword = getBarberPassword(barber);
 
-    if (password !== panelPassword) {
-      els.barberLoginError.hidden = false;
+    if (!savedPassword) {
+      if (password.length < 4) {
+        showBarberLoginError("La contraseña tiene que tener al menos 4 caracteres.");
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        showBarberLoginError("Las contraseñas no coinciden.");
+        return;
+      }
+
+      saveBarberPassword(barber, password);
+    } else if (!matchesBarberPassword(barber, password)) {
+      showBarberLoginError("Contraseña incorrecta.");
       return;
     }
 
@@ -340,7 +361,30 @@ function renderAuth() {
 function openBarberLogin() {
   els.barberLoginError.hidden = true;
   els.barberPassword.value = "";
+  els.barberPasswordConfirm.value = "";
+  renderBarberLoginMode();
   els.barberLoginDialog.showModal();
+}
+
+function renderBarberLoginMode() {
+  const selectedRole = els.barberLoginSelect.value;
+  const hasPassword = Boolean(getBarberPassword(selectedRole));
+  const label = selectedRole === "admin" ? "Administración" : getBarber(selectedRole).name;
+
+  els.barberLoginTitle.textContent = hasPassword ? `Entrar como ${label}` : `Crear clave para ${label}`;
+  els.barberLoginHelp.textContent = hasPassword
+    ? "Ingresá la contraseña de este acceso de barbero."
+    : "Primera vez en este dispositivo: creá una contraseña para este acceso.";
+  els.barberPasswordLabel.textContent = hasPassword ? "Contraseña" : "Nueva contraseña";
+  els.barberPassword.placeholder = hasPassword ? "Clave del panel" : "Mínimo 4 caracteres";
+  els.barberPasswordConfirmField.hidden = hasPassword;
+  els.barberPasswordConfirm.required = !hasPassword;
+  els.barberLoginError.hidden = true;
+}
+
+function showBarberLoginError(message) {
+  els.barberLoginError.textContent = message;
+  els.barberLoginError.hidden = false;
 }
 
 function isBarberAuthenticated() {
@@ -932,6 +976,28 @@ function getService(id) {
 
 function getBarber(id) {
   return barbers.find((barber) => barber.id === id) || barbers[0];
+}
+
+function getBarberPasswords() {
+  return JSON.parse(localStorage.getItem(barberPasswordStoreKey) || "{}");
+}
+
+function getBarberPassword(role) {
+  return getBarberPasswords()[role] || "";
+}
+
+function saveBarberPassword(role, password) {
+  const passwords = getBarberPasswords();
+  passwords[role] = encodePassword(password);
+  localStorage.setItem(barberPasswordStoreKey, JSON.stringify(passwords));
+}
+
+function matchesBarberPassword(role, password) {
+  return getBarberPassword(role) === encodePassword(password);
+}
+
+function encodePassword(password) {
+  return btoa(unescape(encodeURIComponent(password)));
 }
 
 function clientFullName(client) {
