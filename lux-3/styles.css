@@ -821,6 +821,8 @@ textarea:focus {
 .appointment-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .client-appointment {
@@ -885,6 +887,20 @@ textarea:focus {
 
 .mini-button.success {
   color: var(--green);
+}
+
+.whatsapp-button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(24, 118, 90, 0.35);
+  border-radius: 8px;
+  background: rgba(24, 118, 90, 0.1);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 button:disabled {

@@ -643,16 +643,17 @@ function renderPanelClientFile() {
 function appointmentTemplate(booking) {
   const service = getService(booking.serviceId);
   const barber = getBarber(booking.barberId);
+  const reminderHref = waLink(booking.phone, buildReminderMessage(booking));
   return `
     <article class="appointment">
       <time datetime="${booking.date}T${booking.time}">${booking.time}</time>
       <div>
         <strong>${booking.name}</strong>
-        <span>${formatDate(booking.date)} · ${barber.name} · ${service.name}</span>
-        <span>${booking.note || "Sin nota"}</span>
+        <span>${formatDate(booking.date)} · ${barber.name} · ${service.name} · ${formatter.format(service.price)}</span>
+        <span>WhatsApp: ${formatPhone(booking.phone)} · ${booking.note || "Sin nota"}</span>
       </div>
       <div class="appointment-actions">
-        <a class="mini-button" href="${waLink(booking.phone, buildReminderMessage(booking))}" target="_blank" rel="noreferrer" title="Recordatorio" aria-label="Enviar recordatorio">W</a>
+        <a class="whatsapp-button" href="${reminderHref}" target="_blank" rel="noreferrer" title="Abrir WhatsApp con recordatorio" aria-label="Abrir WhatsApp con recordatorio">WhatsApp</a>
         <button class="mini-button success" type="button" data-complete="${booking.id}" title="Trabajo terminado" aria-label="Marcar corte terminado">OK</button>
         <button class="mini-button danger" type="button" data-cancel="${booking.id}" title="Cancelar" aria-label="Cancelar turno">X</button>
       </div>
@@ -763,11 +764,9 @@ function setView(view) {
 function showSuccess(booking) {
   const service = getService(booking.serviceId);
   const barber = getBarber(booking.barberId);
-  const href = waLink(booking.phone, buildConfirmationMessage(booking));
-  els.successCopy.textContent = `${booking.name}, te esperamos el ${formatDate(booking.date)} a las ${booking.time} con ${barber.name} para ${service.name}.`;
-  els.successWhatsapp.href = href;
+  els.successCopy.textContent = `${booking.name}, tu turno quedó confirmado para el ${formatDate(booking.date)} a las ${booking.time} con ${barber.name} para ${service.name}. En unos momentos te enviaremos un recordatorio por WhatsApp.`;
+  els.successWhatsapp.hidden = true;
   els.successDialog.showModal();
-  window.open(href, "_blank", "noreferrer");
 }
 
 function resetBookingForm() {
@@ -896,7 +895,7 @@ function buildConfirmationMessage(booking) {
 
 function buildReminderMessage(booking) {
   const service = getService(booking.serviceId);
-  return `Hola ${booking.name}! Te recordamos tu turno en Lux: ${formatDate(booking.date)} a las ${booking.time} con ${getBarber(booking.barberId).name}, ${service.name}. Te esperamos.`;
+  return `Hola ${booking.name}! Te recordamos tu turno en Lux: ${formatDate(booking.date)} a las ${booking.time} con ${getBarber(booking.barberId).name}. Servicio: ${service.name}. Te esperamos.`;
 }
 
 function setActiveClient(phone) {

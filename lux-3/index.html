@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#111111" />
     <title>Lux 3.0</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
   </head>
   <body>
     <div class="app-shell">
@@ -149,7 +149,7 @@
                   <div class="form-actions">
                     <button class="secondary" type="button" id="back-step">Volver</button>
                     <button class="primary" type="button" id="next-step">Continuar</button>
-                    <button class="primary" type="submit" id="confirm-booking">Confirmar por WhatsApp</button>
+                    <button class="primary" type="submit" id="confirm-booking">Confirmar turno</button>
                   </div>
                 </form>
 
@@ -237,7 +237,7 @@
         <h2>Listo, quedó en la agenda</h2>
         <p id="success-copy"></p>
         <div class="dialog-actions">
-          <a class="primary" id="success-whatsapp" href="#" target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+          <a class="primary" id="success-whatsapp" href="#" target="_blank" rel="noreferrer" hidden>Abrir WhatsApp</a>
           <button class="secondary" type="button" id="close-dialog">Cerrar</button>
         </div>
       </div>
@@ -342,6 +342,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=8"></script>
+    <script src="./app.js?v=9"></script>
   </body>
 </html>
