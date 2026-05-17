@@ -945,6 +945,18 @@
           <div class="form">
             <button type="button" id="exportData">Descargar copia</button>
             <button class="ghost" type="button" id="exportExcel">Exportar para Excel</button>
+            <label>Supabase URL
+              <input id="supabaseUrl" placeholder="https://tu-proyecto.supabase.co">
+            </label>
+            <label>Supabase anon key
+              <input id="supabaseKey" placeholder="eyJ...">
+            </label>
+            <label>Nombre de esta copia
+              <input id="supabaseDevice" placeholder="Telefono Diego">
+            </label>
+            <button class="ghost" type="button" id="saveCloudConfig">Guardar nube</button>
+            <button class="ghost" type="button" id="backupCloudNow">Subir copia ahora</button>
+            <div class="notice" id="cloudStatus">La copia en nube requiere una tabla de Supabase llamada tidial_backups.</div>
             <label>Restaurar copia
               <input type="file" id="importData" accept="application/json">
             </label>
@@ -1031,11 +1043,14 @@
     const storageKey = "pedidos-tidial-v1";
     const authStorageKey = "pedidos-tidial-auth-v1";
     const authSessionKey = "pedidos-tidial-session-ok";
+    const cloudConfigKey = "pedidos-tidial-cloud-v1";
+    const cloudLastBackupKey = "pedidos-tidial-cloud-last";
     const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
     const todayISO = new Date().toISOString().slice(0, 10);
 
     const state = load();
     let authConfig = loadAuth();
+    let cloudConfig = loadCloudConfig();
     let debtOnly = false;
     let calcExpression = "";
     let editingClientId = null;
@@ -1301,6 +1316,65 @@
 
     function save() {
       localStorage.setItem(storageKey, JSON.stringify(state));
+      autoCloudBackup();
+    }
+
+    function loadCloudConfig() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(cloudConfigKey) || "{}");
+        return {
+          url: parsed.url || "",
+          key: parsed.key || "",
+          device: parsed.device || ""
+        };
+      } catch {
+        return { url: "", key: "", device: "" };
+      }
+    }
+
+    function saveCloudConfig() {
+      cloudConfig = {
+        url: $("#supabaseUrl").value.trim().replace(/\/$/, ""),
+        key: $("#supabaseKey").value.trim(),
+        device: $("#supabaseDevice").value.trim() || "Pedidos TIDIAL"
+      };
+      localStorage.setItem(cloudConfigKey, JSON.stringify(cloudConfig));
+      $("#cloudStatus").textContent = "Configuración de nube guardada.";
+    }
+
+    async function uploadCloudBackup(showResult = false) {
+      if (!cloudConfig.url || !cloudConfig.key) {
+        if (showResult) $("#cloudStatus").textContent = "Falta cargar URL y anon key de Supabase.";
+        return;
+      }
+      try {
+        const response = await fetch(`${cloudConfig.url}/rest/v1/tidial_backups`, {
+          method: "POST",
+          headers: {
+            apikey: cloudConfig.key,
+            Authorization: `Bearer ${cloudConfig.key}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify({
+            device_id: cloudConfig.device || "Pedidos TIDIAL",
+            backup_data: state,
+            saved_at: new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error("Supabase no aceptó la copia.");
+        localStorage.setItem(cloudLastBackupKey, String(Date.now()));
+        if (showResult) $("#cloudStatus").textContent = "Copia subida a Supabase.";
+      } catch {
+        if (showResult) $("#cloudStatus").textContent = "No se pudo subir. Revisá Supabase URL, anon key y tabla tidial_backups.";
+      }
+    }
+
+    function autoCloudBackup() {
+      if (!cloudConfig.url || !cloudConfig.key) return;
+      const last = Number(localStorage.getItem(cloudLastBackupKey) || 0);
+      if (Date.now() - last < 5 * 60 * 1000) return;
+      uploadCloudBackup(false);
     }
 
     function id() {
@@ -1404,6 +1478,62 @@
       return Math.max(0, clientPaid(clientId) - clientTotal(clientId));
     }
 
+    function addClientDebt(clientId, amount, note = "Deuda general") {
+      state.orders.push({
+        id: id(),
+        clientId,
+        items: note,
+        total: amount,
+        paid: 0,
+        payments: [],
+        date: todayISO,
+        deliveryDate: "",
+        status: "Pendiente"
+      });
+    }
+
+    function addClientGeneralPayment(clientId, amount, note = "Pago general") {
+      state.orders.push({
+        id: id(),
+        clientId,
+        items: note,
+        total: 0,
+        paid: 0,
+        payments: [{ id: id(), amount, date: todayISO, note }],
+        date: todayISO,
+        deliveryDate: "",
+        status: "Entregado"
+      });
+    }
+
+    function addSupplierDebt(supplierName, amount, note = "Deuda general") {
+      state.purchases.push({
+        id: id(),
+        supplier: supplierName,
+        items: note,
+        total: amount,
+        paid: 0,
+        payments: [],
+        date: todayISO,
+        dueDate: "",
+        status: "Pendiente"
+      });
+    }
+
+    function addSupplierGeneralPayment(supplierName, amount, note = "Pago general") {
+      state.purchases.push({
+        id: id(),
+        supplier: supplierName,
+        items: note,
+        total: 0,
+        paid: 0,
+        payments: [{ id: id(), amount, date: todayISO, note }],
+        date: todayISO,
+        dueDate: "",
+        status: "Pagada"
+      });
+    }
+
     function itemPayments(item) {
       const history = Array.isArray(item.payments) ? item.payments.slice() : [];
       if (Number(item.paid || 0) > 0) {
@@ -1422,9 +1552,27 @@
       return digits ? `https://wa.me/${digits}` : "";
     }
 
+    function whatsappMessageURL(phone, text) {
+      const digits = String(phone || "").replace(/\D/g, "");
+      return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : "";
+    }
+
+    function normalizeText(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    }
+
+    function safeCSS(value) {
+      return window.CSS?.escape ? CSS.escape(value) : String(value).replace(/["\\]/g, "\\$&");
+    }
+
     function matchesSearch(text) {
-      const query = $("#search").value.trim().toLowerCase();
-      return !query || text.toLowerCase().includes(query);
+      const query = normalizeText($("#search").value.trim());
+      if (!query) return true;
+      const haystack = normalizeText(text);
+      return query.split(/\s+/).every((word) => haystack.includes(word));
     }
 
     function renderAll() {
@@ -1894,7 +2042,19 @@
           <div class="actions">
             <button class="ghost" type="button" data-quick-order="${client.id}" data-return-client="${client.id}">Nuevo pedido</button>
             <button class="ghost" type="button" data-edit-client="${client.id}" data-return-client="${client.id}">Editar ficha</button>
+            <button class="ghost" type="button" data-client-statement="${client.id}">Enviar cuenta</button>
             ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Cuenta corriente</h2>
+          <div class="two">
+            <input inputmode="decimal" placeholder="Pago general" data-client-payment-general="${client.id}">
+            <button class="ghost" type="button" data-add-client-payment-general="${client.id}">Anotar pago</button>
+          </div>
+          <div class="two">
+            <input inputmode="decimal" placeholder="Agregar deuda" data-client-debt-general="${client.id}">
+            <button class="ghost" type="button" data-add-client-debt-general="${client.id}">Agregar deuda</button>
           </div>
         </div>
         <div class="detail-block">
@@ -1969,7 +2129,19 @@
           <div class="actions">
             <button class="ghost" type="button" data-quick-purchase="${escapeHTML(supplierName)}" data-return-provider="${escapeHTML(supplierName)}">Nueva compra</button>
             ${supplier ? `<button class="ghost" type="button" data-edit-supplier="${supplier.id}" data-return-provider="${escapeHTML(supplierName)}">Editar ficha</button>` : ""}
+            <button class="ghost" type="button" data-provider-statement="${escapeHTML(supplierName)}">Enviar cuenta</button>
             ${whatsapp ? `<button class="ghost" type="button" data-whatsapp="${whatsapp}">WhatsApp</button>` : ""}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h2>Cuenta corriente</h2>
+          <div class="two">
+            <input inputmode="decimal" placeholder="Pago general" data-provider-payment-general="${escapeHTML(supplierName)}">
+            <button class="ghost" type="button" data-add-provider-payment-general="${escapeHTML(supplierName)}">Anotar pago</button>
+          </div>
+          <div class="two">
+            <input inputmode="decimal" placeholder="Agregar deuda" data-provider-debt-general="${escapeHTML(supplierName)}">
+            <button class="ghost" type="button" data-add-provider-debt-general="${escapeHTML(supplierName)}">Agregar deuda</button>
           </div>
         </div>
         <div class="detail-block">
@@ -2067,6 +2239,43 @@
         </div>
       `;
       $("#detailOverlay").hidden = false;
+    }
+
+    function clientStatement(clientId) {
+      const client = state.clients.find((item) => item.id === clientId);
+      const orders = clientOrders(clientId).sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+      const lines = [
+        `Cuenta corriente - ${client.name}`,
+        `Total vendido: ${money.format(clientTotal(clientId))}`,
+        `Total cobrado: ${money.format(clientPaid(clientId))}`,
+        `Saldo a cobrar: ${money.format(clientDebt(clientId))}`,
+        clientCredit(clientId) > 0 ? `Saldo a favor: ${money.format(clientCredit(clientId))}` : "",
+        "",
+        "Detalle:"
+      ].filter(Boolean);
+      orders.slice(0, 12).forEach((order) => {
+        lines.push(`${formatDate(order.date)} - ${order.items.replace(/\n/g, " / ")} - Total ${money.format(order.total)} - Pagó ${money.format(orderPaid(order))}`);
+      });
+      return lines.join("\n");
+    }
+
+    function providerStatement(supplierName) {
+      const supplier = supplierRecordByName(supplierName);
+      const purchases = supplierPurchases(supplierName).sort((a, b) => `${b.date}${b.id}`.localeCompare(`${a.date}${a.id}`));
+      const lines = [
+        `Cuenta corriente - ${supplierName}`,
+        `Total comprado: ${money.format(supplierTotal(supplierName))}`,
+        `Total pagado: ${money.format(supplierPaid(supplierName))}`,
+        `Saldo a pagar: ${money.format(supplierDebt(supplierName))}`,
+        supplierCredit(supplierName) > 0 ? `Saldo a favor: ${money.format(supplierCredit(supplierName))}` : "",
+        supplier?.address ? `Dirección: ${supplier.address}` : "",
+        "",
+        "Detalle:"
+      ].filter(Boolean);
+      purchases.slice(0, 12).forEach((purchase) => {
+        lines.push(`${formatDate(purchase.date)} - ${purchase.items.replace(/\n/g, " / ")} - Total ${money.format(purchase.total)} - Pagó ${money.format(purchasePaid(purchase))}`);
+      });
+      return lines.join("\n");
     }
 
     function returnToTarget(target) {
@@ -2495,6 +2704,73 @@
         window.open(button.dataset.whatsapp, "_blank");
       }
 
+      if (button.dataset.clientStatement) {
+        const client = state.clients.find((item) => item.id === button.dataset.clientStatement);
+        const text = clientStatement(client.id);
+        const url = whatsappMessageURL(client.phone, text);
+        if (url) {
+          window.open(url, "_blank");
+        } else {
+          navigator.clipboard?.writeText(text);
+          alert("El cliente no tiene teléfono. Copié el detalle para pegarlo manualmente.");
+        }
+      }
+
+      if (button.dataset.providerStatement) {
+        const supplierName = button.dataset.providerStatement;
+        const supplier = supplierRecordByName(supplierName);
+        const text = providerStatement(supplierName);
+        const url = whatsappMessageURL(supplier?.phone, text);
+        if (url) {
+          window.open(url, "_blank");
+        } else {
+          navigator.clipboard?.writeText(text);
+          alert("El proveedor no tiene teléfono. Copié el detalle para pegarlo manualmente.");
+        }
+      }
+
+      if (button.dataset.addClientPaymentGeneral) {
+        const input = document.querySelector(`[data-client-payment-general="${button.dataset.addClientPaymentGeneral}"]`);
+        const amount = numberFrom(input.value);
+        if (amount <= 0) return;
+        addClientGeneralPayment(button.dataset.addClientPaymentGeneral, amount);
+        save();
+        renderAll();
+        renderClientDetail(button.dataset.addClientPaymentGeneral);
+      }
+
+      if (button.dataset.addClientDebtGeneral) {
+        const input = document.querySelector(`[data-client-debt-general="${button.dataset.addClientDebtGeneral}"]`);
+        const amount = numberFrom(input.value);
+        if (amount <= 0) return;
+        addClientDebt(button.dataset.addClientDebtGeneral, amount);
+        save();
+        renderAll();
+        renderClientDetail(button.dataset.addClientDebtGeneral);
+      }
+
+      if (button.dataset.addProviderPaymentGeneral) {
+        const supplierName = button.dataset.addProviderPaymentGeneral;
+        const input = document.querySelector(`[data-provider-payment-general="${safeCSS(supplierName)}"]`);
+        const amount = numberFrom(input.value);
+        if (amount <= 0) return;
+        addSupplierGeneralPayment(supplierName, amount);
+        save();
+        renderAll();
+        renderProviderDetail(supplierName);
+      }
+
+      if (button.dataset.addProviderDebtGeneral) {
+        const supplierName = button.dataset.addProviderDebtGeneral;
+        const input = document.querySelector(`[data-provider-debt-general="${safeCSS(supplierName)}"]`);
+        const amount = numberFrom(input.value);
+        if (amount <= 0) return;
+        addSupplierDebt(supplierName, amount);
+        save();
+        renderAll();
+        renderProviderDetail(supplierName);
+      }
+
       if (button.dataset.deleteClient && confirm("¿Borrar este cliente y sus pedidos?")) {
         state.clients = state.clients.filter((client) => client.id !== button.dataset.deleteClient);
         state.orders = state.orders.filter((order) => order.clientId !== button.dataset.deleteClient);
@@ -2631,6 +2907,13 @@
       URL.revokeObjectURL(url);
     });
 
+    $("#saveCloudConfig").addEventListener("click", saveCloudConfig);
+    $("#backupCloudNow").addEventListener("click", () => uploadCloudBackup(true));
+
+    $("#supabaseUrl").value = cloudConfig.url || "";
+    $("#supabaseKey").value = cloudConfig.key || "";
+    $("#supabaseDevice").value = cloudConfig.device || "";
+
     function csvCell(value) {
       return `"${String(value ?? "").replace(/"/g, '""')}"`;
     }
@@ -2647,28 +2930,28 @@
 
     $("#exportExcel").addEventListener("click", () => {
       const rows = [
-        ["Tipo", "Nombre", "Fecha", "Detalle", "Total", "Pagado", "Saldo", "Estado"]
+        ["Tipo", "Nombre", "Fecha", "Detalle", "Total", "Pagado", "Saldo", "Saldo a favor", "Estado"]
       ];
 
       state.clients.forEach((client) => {
-        rows.push(["Cliente", client.name, "", `${client.phone || ""} ${client.address || ""} ${client.note || ""}`, "", "", clientDebt(client.id), ""]);
+        rows.push(["Cuenta cliente", client.name, "", `${client.phone || ""} ${client.address || ""} ${client.note || ""}`, clientTotal(client.id), clientPaid(client.id), clientDebt(client.id), clientCredit(client.id), ""]);
       });
 
       state.suppliers.forEach((supplier) => {
-        rows.push(["Proveedor", supplier.name, "", `${supplier.phone || ""} ${supplier.address || ""} ${supplier.note || ""}`, supplierTotal(supplier.name), supplierPaid(supplier.name), supplierDebt(supplier.name), ""]);
+        rows.push(["Cuenta proveedor", supplier.name, "", `${supplier.phone || ""} ${supplier.address || ""} ${supplier.note || ""}`, supplierTotal(supplier.name), supplierPaid(supplier.name), supplierDebt(supplier.name), supplierCredit(supplier.name), ""]);
       });
 
       state.orders.forEach((order) => {
-        rows.push(["Pedido", clientName(order.clientId), order.date, order.items.replace(/\n/g, " / "), order.total, orderPaid(order), orderDebt(order), order.status]);
+        rows.push(["Pedido", clientName(order.clientId), order.date, order.items.replace(/\n/g, " / "), order.total, orderPaid(order), orderDebt(order), "", order.status]);
         itemPayments(order).forEach((payment) => {
-          rows.push(["Pago cliente", clientName(order.clientId), payment.date, payment.note || "Pago", "", payment.amount, "", ""]);
+          rows.push(["Pago cliente", clientName(order.clientId), payment.date, payment.note || "Pago", "", payment.amount, "", "", ""]);
         });
       });
 
       state.purchases.forEach((purchase) => {
-        rows.push(["Compra", purchase.supplier, purchase.date, purchase.items.replace(/\n/g, " / "), purchase.total, purchasePaid(purchase), purchaseDebt(purchase), purchase.status]);
+        rows.push(["Compra", purchase.supplier, purchase.date, purchase.items.replace(/\n/g, " / "), purchase.total, purchasePaid(purchase), purchaseDebt(purchase), "", purchase.status]);
         itemPayments(purchase).forEach((payment) => {
-          rows.push(["Pago proveedor", purchase.supplier, payment.date, payment.note || "Pago", "", payment.amount, "", ""]);
+          rows.push(["Pago proveedor", purchase.supplier, payment.date, payment.note || "Pago", "", payment.amount, "", "", ""]);
         });
       });
 
