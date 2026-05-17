@@ -490,6 +490,23 @@
       background: #edf7f1;
     }
 
+    .back-fab {
+      position: fixed;
+      left: 14px;
+      bottom: 86px;
+      z-index: 26;
+      min-width: 94px;
+      height: 46px;
+      border-radius: 999px;
+      box-shadow: 0 12px 28px rgba(31, 41, 51, 0.16);
+    }
+
+    .back-fab:disabled {
+      opacity: 0.45;
+      cursor: default;
+      transform: none;
+    }
+
     .notice {
       margin-top: 10px;
       padding: 10px 12px;
@@ -679,6 +696,10 @@
 
       .calc-fab {
         right: calc((100% - min(980px, 100%)) / 2 + 18px);
+      }
+
+      .back-fab {
+        left: calc((100% - min(980px, 100%)) / 2 + 18px);
       }
     }
 
@@ -968,6 +989,7 @@
     </section>
   </main>
 
+  <button class="back-fab ghost" id="appBackButton" type="button" hidden>Atrás</button>
   <button class="calc-fab" id="calculatorFab" type="button" data-calculator-open hidden>Calc</button>
 
   <section class="calc-overlay" id="calculatorOverlay" hidden>
@@ -1058,6 +1080,8 @@
     let editingOrderId = null;
     let editingPurchaseId = null;
     let detailReturn = null;
+    let viewHistory = [];
+    let androidBackReady = false;
     let clientFormReturn = null;
     let supplierFormReturn = null;
     let orderFormReturn = null;
@@ -1126,8 +1150,11 @@
       $("#authScreen").hidden = true;
       $("#app").hidden = false;
       $("#mainNav").hidden = false;
+      $("#appBackButton").hidden = false;
       $("#calculatorFab").hidden = false;
+      armAndroidBack();
       renderAll();
+      updateBackButton();
     }
 
     $("#authForm").addEventListener("submit", async (event) => {
@@ -1170,6 +1197,7 @@
       $("#authPassword").value = "";
       $("#calculatorOverlay").hidden = true;
       $("#detailOverlay").hidden = true;
+      $("#appBackButton").hidden = true;
       setupAuthScreen();
     });
 
@@ -1198,13 +1226,57 @@
       }).replace(/(\d+(?:\.\d+)?)%/g, "($1/100)");
     }
 
+    function canGoBack() {
+      return !$("#calculatorOverlay").hidden || !$("#detailOverlay").hidden || viewHistory.length > 0 || currentViewName() !== "home";
+    }
+
+    function updateBackButton() {
+      const button = $("#appBackButton");
+      if (!button || button.hidden) return;
+      button.disabled = !canGoBack();
+    }
+
+    function armAndroidBack() {
+      if (androidBackReady) return;
+      androidBackReady = true;
+      history.replaceState({ tidialBackGuard: true }, "", location.href);
+      history.pushState({ tidialBackGuard: true }, "", location.href);
+    }
+
+    window.addEventListener("popstate", () => {
+      if ($("#app").hidden) return;
+      goBackInApp();
+      history.pushState({ tidialBackGuard: true }, "", location.href);
+    });
+
+    function goBackInApp() {
+      if (!$("#calculatorOverlay").hidden) {
+        closeCalculator();
+        return;
+      }
+      if (!$("#detailOverlay").hidden) {
+        closeDetail();
+        return;
+      }
+      if (viewHistory.length > 0) {
+        openView(viewHistory.pop(), { skipHistory: true });
+        return;
+      }
+      if (currentViewName() !== "home") {
+        openView("home", { skipHistory: true });
+      }
+      updateBackButton();
+    }
+
     function openCalculator() {
       $("#calculatorOverlay").hidden = false;
       updateCalculator();
+      updateBackButton();
     }
 
     function closeCalculator() {
       $("#calculatorOverlay").hidden = true;
+      updateBackButton();
     }
 
     function closeDetail() {
@@ -1216,16 +1288,19 @@
         if (target.type === "dashboard") renderDashboardDetail(target.id);
         if (target.type === "view") {
           $("#detailOverlay").hidden = true;
-          openView(target.id);
+          openView(target.id, { skipHistory: true });
         }
+        updateBackButton();
         return;
       }
       $("#detailOverlay").hidden = true;
+      updateBackButton();
     }
 
     function hideDetail() {
       detailReturn = null;
       $("#detailOverlay").hidden = true;
+      updateBackButton();
     }
 
     function currentViewName() {
@@ -1241,6 +1316,7 @@
     }
 
     $("#detailClose").addEventListener("click", closeDetail);
+    $("#appBackButton").addEventListener("click", goBackInApp);
     $("#detailOverlay").addEventListener("click", (event) => {
       if (event.target === $("#detailOverlay")) closeDetail();
     });
@@ -1747,6 +1823,7 @@
         </div>
       `;
       $("#detailOverlay").hidden = false;
+      updateBackButton();
     }
 
     function renderClientOptions() {
@@ -2101,6 +2178,7 @@
         </div>
       `;
       $("#detailOverlay").hidden = false;
+      updateBackButton();
     }
 
     function renderProviderDetail(supplierName, returnTarget = null) {
@@ -2188,6 +2266,7 @@
         </div>
       `;
       $("#detailOverlay").hidden = false;
+      updateBackButton();
     }
 
     function renderPaymentDetail(type, itemId, returnTarget = null) {
@@ -2239,6 +2318,7 @@
         </div>
       `;
       $("#detailOverlay").hidden = false;
+      updateBackButton();
     }
 
     function clientStatement(clientId) {
@@ -2282,7 +2362,7 @@
       if (target?.type === "client") renderClientDetail(target.id);
       if (target?.type === "provider") renderProviderDetail(target.id);
       if (target?.type === "dashboard") renderDashboardDetail(target.id);
-      if (target?.type === "view") openView(target.id);
+      if (target?.type === "view") openView(target.id, { skipHistory: true });
     }
 
     function resetClientForm(options = {}) {
@@ -2634,7 +2714,7 @@
       if (!button) return;
 
       if (button.dataset.open) {
-        closeDetail();
+        hideDetail();
         openView(button.dataset.open);
       }
 
@@ -2880,9 +2960,15 @@
       }
     });
 
-    function openView(name) {
+    function openView(name, options = {}) {
+      const current = currentViewName();
+      if (!options.skipHistory && current !== name) {
+        viewHistory.push(current);
+        if (viewHistory.length > 25) viewHistory.shift();
+      }
       $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === name));
       $$(".nav button").forEach((button) => button.classList.toggle("active", button.dataset.open === name));
+      updateBackButton();
     }
 
     $("#search").addEventListener("input", renderAll);
